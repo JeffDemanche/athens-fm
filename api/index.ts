@@ -1,8 +1,10 @@
 import "dotenv/config";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import app from "../apps/api/src/app.js";
+import type { Express } from "express";
+import { createApp } from "../apps/api/src/app.js";
 import { connectMongo } from "../apps/api/src/config/mongo.js";
 
+let appPromise: Promise<Express> | null = null;
 let dbReady: Promise<void> | null = null;
 
 function ensureDatabase(): Promise<void> {
@@ -17,7 +19,15 @@ function ensureDatabase(): Promise<void> {
   return dbReady;
 }
 
+function ensureApp(): Promise<Express> {
+  if (!appPromise) {
+    appPromise = createApp();
+  }
+  return appPromise;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   await ensureDatabase();
+  const app = await ensureApp();
   return app(req, res);
 }

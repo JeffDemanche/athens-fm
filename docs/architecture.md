@@ -18,7 +18,7 @@ Last updated: 2026-07-13
 | Path | Role |
 |------|------|
 | `apps/web` | Vite + React + Tailwind CSS + shadcn/ui frontend (`@athens-fm/web`) |
-| `apps/api` | Express + Mongoose + Redis API (`@athens-fm/api`) |
+| `apps/api` | Express + Apollo GraphQL + Mongoose + Redis API (`@athens-fm/api`) |
 | `api/` | Vercel serverless entry that re-exports the Express app |
 | `docker-compose.yml` | Local full stack: mongo, redis, api (tsx watch), web (Vite HMR) |
 | `Dockerfile.dev` | Shared Node 22 image used by api/web compose services |
@@ -44,36 +44,61 @@ Compose services:
 
 Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173` so HMR works through published ports.
 
+**Dependency installs**: `node_modules` lives in the image (`npm ci` in `Dockerfile.dev`), not a bind mount. After changing `package.json` / `package-lock.json`, rebuild/recreate (`npm run dev` or `docker compose up --build`) or Vite will fail to resolve new imports (e.g. `@apollo/client/react`).
+
 ## Frontend (`apps/web`)
 
-- **Stack**: Vite, React 19, TypeScript, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui under `src/components/ui`.
+- **Stack**: Vite, React 19, React Router, Apollo Client, TypeScript, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui primitives.
 - **Path alias**: `@/*` → `src/*`
-- **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`).
+- **UI layers** (atomic-style):
+  - `src/primitives/` — base UI (Button, Input, Text, …); shadcn `ui` alias targets here
+  - `src/composites/` — composed building blocks (PageShell, RoomHeader, DeskPanel, …)
+  - `src/features/` — product behaviors (create-room, room-detail, …)
+  - `src/views/` — route-level screens
+- **Routes**:
+  - `/` — landing
+  - `/rooms/:roomId/host` — host desk (full-viewport layout)
+  - `/rooms/:roomId` — participant room view (mobile-web oriented)
+- **Host desk layout** (`views/host-room` + `features/host-desk`):
+  - Top bar — room name + participant/leave links
+  - Main row — large **viewer** (YouTube embed / now playing) left; narrower **activity** feed right
+  - Bottom row — horizontal **playlist** of upcoming tracks
+  - Panel chrome via `composites/desk-panel`; queue/vote models still pending (placeholder content for now)
+- **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
+- **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL.
 - **Tests**: Jest + Testing Library (`jest.config.ts`, `jest.setup.ts`).
 - **UI convention**: Prefer shadcn components; add with `npx shadcn@latest add <name>` from `apps/web`.
-- **shadcn path resolution**: Keep `@/*` → `./src/*` in `apps/web/tsconfig.json` (not only `tsconfig.app.json`), otherwise the CLI writes files under a literal `@/` directory.
+- **shadcn path resolution**: Keep `@/*` → `./src/*` in `apps/web/tsconfig.json`; `components.json` maps `ui` → `@/primitives`.
 
 ## Backend (`apps/api`)
 
-- **Stack**: Express 5, Mongoose, ioredis, Zod, TypeScript (NodeNext ESM).
+- **Stack**: Express 5, Apollo Server, Mongoose, ioredis, Zod, TypeScript (NodeNext ESM).
+- **Layered architecture**:
+  - **GraphQL API** — `src/graphql/` (typeDefs, resolvers, Apollo server, context)
+  - **Service** — `src/services/` (business rules; e.g. `roomService`)
+  - **Repository** — `src/repositories/` (Mongo access; e.g. `roomRepository`)
+  - **Models** — `src/models/` (Mongoose schemas; e.g. `Room`)
 - **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`).
-- **App factory**: `createApp()` in `src/app.ts` — used by tests, local server, and the Vercel adapter.
-- **Routes**: Mounted under `/api/...` (e.g. `GET /api/health` reports mongo + redis status).
+- **App factory**: async `createApp()` in `src/app.ts` — used by tests, local server, and the Vercel adapter.
+- **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql`.
+- **Domain (starter)**: `Room` with `id`, `name`, timestamps — queryable via `room(id)` / `rooms`, creatable via `createRoom(name)`.
 - **Database**: MongoDB via `MONGODB_URI`.
 - **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts`).
-- **Tests**: Jest + Supertest against `createApp()` (no live DB/Redis required for health).
+- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room tests use `mongodb-memory-server`.
 
 ## Vercel deployment
 
 - **Config**: Root `vercel.json`
   - Builds `@athens-fm/web` → `apps/web/dist`
   - Rewrites `/api/*` → `/api` serverless function
-- **Serverless entry**: `api/index.ts` exports the Express app and lazily connects MongoDB when `MONGODB_URI` is set.
+  - SPA fallback rewrite for client routes (`/rooms/...`)
+- **Serverless entry**: `api/index.ts` lazily creates the Express/Apollo app and connects MongoDB when `MONGODB_URI` is set.
 - **Env vars** (set in Vercel project + local `.env`):
   - `MONGODB_URI` — Atlas (or other) connection string
   - `REDIS_URL` — managed Redis (e.g. Upstash) when needed in production
   - `CORS_ORIGIN` — production web origin(s), comma-separated if multiple
   - `PORT` — local/docker only
+  - `VITE_GRAPHQL_URL` — optional; defaults to `/api/graphql`
 - **Local Vercel parity**: `vercel dev` from repo root after `vercel link`.
 - **Recommended**: One Vercel project rooted at the monorepo.
 
@@ -96,7 +121,7 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 
 ## Open / undecided
 
-- Product domain models (rooms, queues, votes, tracks) are not defined yet.
 - Auth strategy not chosen.
 - Real-time transport (WebSocket vs polling vs SSE) not chosen.
 - Production Redis provider not chosen.
+- Queue / vote / track models not defined yet (Room is the starter entity).

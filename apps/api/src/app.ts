@@ -1,10 +1,15 @@
+import { expressMiddleware } from "@as-integrations/express5";
 import cors from "cors";
 import express from "express";
-import { healthRouter } from "./routes/health.js";
+import { createGraphQLContext } from "./graphql/context.js";
+import { createApolloServer } from "./graphql/server.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { healthRouter } from "./routes/health.js";
 
-export function createApp() {
+export async function createApp() {
   const app = express();
+  const apollo = createApolloServer();
+  await apollo.start();
 
   app.use(
     cors({
@@ -20,9 +25,14 @@ export function createApp() {
 
   app.use("/api/health", healthRouter);
 
+  app.use(
+    "/api/graphql",
+    expressMiddleware(apollo, {
+      context: async () => createGraphQLContext(),
+    }),
+  );
+
   app.use(errorHandler);
 
   return app;
 }
-
-export default createApp();

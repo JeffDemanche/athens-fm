@@ -25,9 +25,10 @@ async function main() {
     console.warn("[api] REDIS_URL not set — starting without Redis");
   }
 
-  const app = createApp();
+  const app = await createApp();
   app.listen(port, "0.0.0.0", () => {
     console.log(`[api] listening on http://0.0.0.0:${port}`);
+    console.log(`[api] GraphQL at http://0.0.0.0:${port}/api/graphql`);
   });
 }
 

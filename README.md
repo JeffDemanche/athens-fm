@@ -6,8 +6,8 @@ A democratic DJ.
 
 | Package | Stack |
 |---------|--------|
-| `apps/web` | Vite, React, Tailwind CSS, shadcn/ui, TypeScript |
-| `apps/api` | Express, MongoDB (Mongoose), Redis, TypeScript |
+| `apps/web` | Vite, React, React Router, Apollo Client, Tailwind CSS, shadcn/ui |
+| `apps/api` | Express, Apollo GraphQL, MongoDB (Mongoose), Redis |
 
 Architecture details for humans and agents live in [`docs/architecture.md`](docs/architecture.md).
 
