@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+.git
+.vercel
+.cursor
+**/.env
+**/.env.local
+**/dist
+**/coverage
+**/*.log
+**/.DS_Store
+apps/web/dist
+apps/api/dist
+README.md
+docs

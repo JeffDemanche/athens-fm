@@ -1,0 +1,21 @@
+---
+description: Keep docs/architecture.md as the living source of truth for concepts and architecture
+alwaysApply: true
+---
+
+# Living architecture doc
+
+`docs/architecture.md` is the project’s living record of concepts, package boundaries, deploy shape, and agent conventions.
+
+## Required behavior
+
+1. **Read first** when the task involves architecture, routing, env vars, monorepo layout, Vercel, testing strategy, or prompts that depend on how the system is structured.
+2. **Update in the same change** when you alter any of those details (new apps/packages, route prefixes, env contracts, deploy config, shared conventions).
+3. **Keep it factual and short** — bullets over prose; bump the “Last updated” date.
+4. **Link out** for deep feature design: add `docs/<topic>.md` and reference it from `architecture.md` rather than growing one file forever.
+
+## Do not
+
+- Invent conflicting structure without updating the doc.
+- Leave deploy/env/route changes undocumented.
+- Treat README marketing copy as the architecture source of truth — prefer `docs/architecture.md`.

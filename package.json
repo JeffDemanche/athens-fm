@@ -1,0 +1,32 @@
+{
+  "name": "athens-fm",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Athens FM — a democratic DJ",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:stop": "docker compose down --remove-orphans",
+    "dev:local": "concurrently -n web,api -c cyan,magenta \"npm run dev -w @athens-fm/web\" \"npm run dev -w @athens-fm/api\"",
+    "dev:web": "npm run dev -w @athens-fm/web",
+    "dev:api": "npm run dev -w @athens-fm/api",
+    "build": "npm run build -w @athens-fm/web && npm run build -w @athens-fm/api",
+    "build:web": "npm run build -w @athens-fm/web",
+    "build:api": "npm run build -w @athens-fm/api",
+    "test": "npm run test -w @athens-fm/web -- --passWithNoTests && npm run test -w @athens-fm/api -- --passWithNoTests",
+    "test:web": "npm run test -w @athens-fm/web",
+    "test:api": "npm run test -w @athens-fm/api",
+    "lint": "npm run lint -w @athens-fm/web && npm run lint -w @athens-fm/api",
+    "typecheck": "npm run typecheck -w @athens-fm/web && npm run typecheck -w @athens-fm/api"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.3.6",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
