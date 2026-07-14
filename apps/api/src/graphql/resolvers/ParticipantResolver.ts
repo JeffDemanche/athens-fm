@@ -16,9 +16,10 @@ export class ParticipantResolver {
   @Mutation(() => Participant)
   async joinRoom(
     @Arg("roomId", () => ID) roomId: string,
+    @Arg("name", () => String) name: string,
     @Ctx() context: GraphQLContext,
   ): Promise<Participant> {
-    return context.services.participant.joinAsGuest(roomId);
+    return context.services.participant.joinAsGuest(roomId, name);
   }
 
   @Mutation(() => Boolean)

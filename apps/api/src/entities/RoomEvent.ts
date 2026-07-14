@@ -52,6 +52,10 @@ export class RoomEvent {
   participantId!: Types.ObjectId | string;
 
   /** Denormalized so leave events remain readable after the participant row is deleted. */
+  @Field(() => String, { nullable: true })
+  @prop({ required: false, type: String })
+  participantName?: string | null;
+
   @Field(() => ParticipantRole)
   @prop({
     required: true,

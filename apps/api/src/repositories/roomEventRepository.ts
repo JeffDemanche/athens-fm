@@ -10,6 +10,7 @@ function toRoomEvent(doc: {
   _id: mongoose.Types.ObjectId;
   roomId: string | mongoose.Types.ObjectId;
   participantId: string | mongoose.Types.ObjectId;
+  participantName?: string | null;
   participantRole: ParticipantRole;
   type: RoomEventType;
   createdAt: Date;
@@ -19,6 +20,7 @@ function toRoomEvent(doc: {
     id: String(doc._id),
     roomId: String(doc.roomId),
     participantId: String(doc.participantId),
+    participantName: doc.participantName ?? null,
     participantRole: doc.participantRole,
     type: doc.type,
     createdAt: doc.createdAt,
@@ -41,6 +43,7 @@ export const roomEventRepository = {
   async create(input: {
     roomId: string;
     participantId: string;
+    participantName?: string | null;
     participantRole: ParticipantRole;
     type: RoomEventType;
   }): Promise<RoomEvent> {
@@ -54,6 +57,7 @@ export const roomEventRepository = {
     const doc = await RoomEventModel.create({
       roomId: input.roomId,
       participantId: input.participantId,
+      participantName: input.participantName ?? null,
       participantRole: input.participantRole,
       type: input.type,
     });

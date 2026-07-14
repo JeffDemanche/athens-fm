@@ -24,7 +24,7 @@ describe("GraphQL Room API", () => {
     }
   });
 
-  it("creates a room with a host participant and queries by shortId", async () => {
+  it("creates a room with an unnamed host and queries by shortId", async () => {
     const app = await createApp();
 
     const createResponse = await request(app)
@@ -41,6 +41,7 @@ describe("GraphQL Room API", () => {
               participant {
                 id
                 roomId
+                name
                 role
               }
             }
@@ -62,6 +63,7 @@ describe("GraphQL Room API", () => {
     expect(payload.participant).toMatchObject({
       roomId: payload.room.id,
       role: "HOST",
+      name: null,
     });
 
     const shortId = payload.room.shortId as string;
@@ -79,6 +81,7 @@ describe("GraphQL Room API", () => {
               participants {
                 id
                 role
+                name
               }
             }
           }
@@ -94,6 +97,9 @@ describe("GraphQL Room API", () => {
       name: "Democratic Disco",
     });
     expect(byShortId.body.data.room.participants).toHaveLength(1);
-    expect(byShortId.body.data.room.participants[0].role).toBe("HOST");
+    expect(byShortId.body.data.room.participants[0]).toMatchObject({
+      role: "HOST",
+      name: null,
+    });
   });
 });

@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import {
   getModelForClass,
+  index,
   modelOptions,
   prop,
   type ReturnModelType,
@@ -26,6 +27,8 @@ registerEnumType(ParticipantRole, {
   description: "Whether the participant hosts or listens in a room",
 });
 
+export const PARTICIPANT_NAME_MAX_LENGTH = 40;
+
 @ObjectType()
 @modelOptions({
   schemaOptions: {
@@ -33,6 +36,14 @@ registerEnumType(ParticipantRole, {
     collection: "participants",
   },
 })
+@index(
+  { roomId: 1, nameKey: 1 },
+  {
+    unique: true,
+    name: "participants_roomId_nameKey_unique",
+    partialFilterExpression: { nameKey: { $type: "string" } },
+  },
+)
 export class Participant {
   @Field(() => ID)
   id!: string;
@@ -41,6 +52,21 @@ export class Participant {
   @Field(() => ID)
   @prop({ ref: () => Room, required: true, index: true, type: () => Types.ObjectId })
   roomId!: Types.ObjectId | string;
+
+  /** Display name for guests only; hosts are unnamed desk operators. */
+  @Field(() => String, { nullable: true })
+  @prop({
+    required: false,
+    trim: true,
+    minlength: 1,
+    maxlength: PARTICIPANT_NAME_MAX_LENGTH,
+    type: String,
+  })
+  name?: string | null;
+
+  /** Lowercased guest name used for per-room uniqueness. */
+  @prop({ required: false, type: String })
+  nameKey?: string | null;
 
   @Field(() => ParticipantRole)
   @prop({

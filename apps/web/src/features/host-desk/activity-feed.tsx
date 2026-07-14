@@ -26,12 +26,10 @@ type ActivityFeedProps = {
   className?: string;
 };
 
-function roleLabel(role: RoomEventFields["participantRole"]): string {
-  return role === "HOST" ? "Host" : "Guest";
-}
-
 function eventCopy(event: RoomEventFields): string {
-  const actor = roleLabel(event.participantRole);
+  const actor =
+    event.participantName ??
+    (event.participantRole === "HOST" ? "Host" : "Someone");
   if (event.type === "JOINED") {
     return `${actor} joined the room`;
   }

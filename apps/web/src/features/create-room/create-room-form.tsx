@@ -62,6 +62,7 @@ export function CreateRoomForm({ disabled = false }: CreateRoomFormProps) {
       roomId: payload.room.id,
       roomShortId: payload.room.shortId,
       role: payload.participant.role,
+      participantName: null,
     });
     void navigate(`/rooms/${payload.room.shortId}/host`);
   }

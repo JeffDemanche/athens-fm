@@ -34,7 +34,7 @@ describe("GraphQL Participant API", () => {
           mutation CreateRoom($name: String!) {
             createRoom(name: $name) {
               room { id shortId }
-              participant { id }
+              participant { id name role }
             }
           }
         `,
@@ -44,32 +44,38 @@ describe("GraphQL Participant API", () => {
     expect(response.body.errors).toBeUndefined();
     return response.body.data.createRoom as {
       room: { id: string; shortId: string };
-      participant: { id: string };
+      participant: { id: string; name: string | null; role: string };
     };
   }
 
-  it("joins and leaves a room as a guest", async () => {
+  it("creates an unnamed host and joins guests by name", async () => {
     const created = await createRoom("Vote Night");
+    expect(created.participant).toMatchObject({
+      role: "HOST",
+      name: null,
+    });
 
     const joinResponse = await request(app)
       .post("/api/graphql")
       .send({
         query: `
-          mutation JoinRoom($roomId: ID!) {
-            joinRoom(roomId: $roomId) {
+          mutation JoinRoom($roomId: ID!, $name: String!) {
+            joinRoom(roomId: $roomId, name: $name) {
               id
+              name
               role
               roomId
               room { shortId }
             }
           }
         `,
-        variables: { roomId: created.room.shortId },
+        variables: { roomId: created.room.shortId, name: "Maya" },
       });
 
     expect(joinResponse.body.errors).toBeUndefined();
     expect(joinResponse.body.data.joinRoom).toMatchObject({
       role: "GUEST",
+      name: "Maya",
       roomId: created.room.id,
       room: { shortId: created.room.shortId },
     });
@@ -96,7 +102,7 @@ describe("GraphQL Participant API", () => {
         query: `
           query Room($id: ID!) {
             room(id: $id) {
-              participants { id role }
+              participants { id role name }
             }
           }
         `,
@@ -104,8 +110,41 @@ describe("GraphQL Participant API", () => {
       });
 
     expect(participantsResponse.body.data.room.participants).toEqual([
-      expect.objectContaining({ id: created.participant.id, role: "HOST" }),
+      expect.objectContaining({
+        id: created.participant.id,
+        role: "HOST",
+        name: null,
+      }),
     ]);
+  });
+
+  it("rejects duplicate display names in a room", async () => {
+    const created = await createRoom("Name Clash");
+
+    await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation JoinRoom($roomId: ID!, $name: String!) {
+            joinRoom(roomId: $roomId, name: $name) { id }
+          }
+        `,
+        variables: { roomId: created.room.shortId, name: "Maya" },
+      });
+
+    const joinResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation JoinRoom($roomId: ID!, $name: String!) {
+            joinRoom(roomId: $roomId, name: $name) { id }
+          }
+        `,
+        variables: { roomId: created.room.shortId, name: "maya" },
+      });
+
+    expect(joinResponse.body.data?.joinRoom ?? null).toBeNull();
+    expect(joinResponse.body.errors?.[0]?.message).toMatch(/already taken/i);
   });
 
   it("rejects joining a missing room", async () => {
@@ -113,11 +152,11 @@ describe("GraphQL Participant API", () => {
       .post("/api/graphql")
       .send({
         query: `
-          mutation JoinRoom($roomId: ID!) {
-            joinRoom(roomId: $roomId) { id }
+          mutation JoinRoom($roomId: ID!, $name: String!) {
+            joinRoom(roomId: $roomId, name: $name) { id }
           }
         `,
-        variables: { roomId: "ZZZZZ" },
+        variables: { roomId: "ZZZZZ", name: "Maya" },
       });
 
     expect(joinResponse.body.data?.joinRoom ?? null).toBeNull();

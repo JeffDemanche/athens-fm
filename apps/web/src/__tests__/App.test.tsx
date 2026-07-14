@@ -1,7 +1,6 @@
 import { MockedProvider } from "@apollo/client/testing/react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { JOIN_ROOM } from "../graphql/participants";
 import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
@@ -40,6 +39,7 @@ const getRoomEventsMock = {
           id: "event_1",
           roomId: "abc123",
           participantId: "participant_host",
+          participantName: null,
           participantRole: "HOST",
           type: "JOINED",
           createdAt: "2026-07-13T00:00:00.000Z",
@@ -61,34 +61,10 @@ const roomEventAddedMock = {
         id: "event_1",
         roomId: "abc123",
         participantId: "participant_host",
+        participantName: null,
         participantRole: "HOST",
         type: "JOINED",
         createdAt: "2026-07-13T00:00:00.000Z",
-      },
-    },
-  },
-};
-
-const joinRoomMock = {
-  request: {
-    query: JOIN_ROOM,
-    variables: { roomId: "K7M2P" },
-  },
-  result: {
-    data: {
-      joinRoom: {
-        __typename: "Participant",
-        id: "participant_1",
-        roomId: "abc123",
-        role: "GUEST",
-        createdAt: "2026-07-13T00:00:00.000Z",
-        updatedAt: "2026-07-13T00:00:00.000Z",
-        room: {
-          __typename: "Room",
-          id: "abc123",
-          shortId: "K7M2P",
-          name: "Studio Night",
-        },
       },
     },
   },
@@ -101,7 +77,6 @@ function renderApp(path: string) {
         getRoomMock,
         getRoomEventsMock,
         roomEventAddedMock,
-        joinRoomMock,
         getRoomMock,
       ]}
     >
@@ -142,11 +117,9 @@ describe("App routing", () => {
     renderApp("/rooms/K7M2P");
 
     expect(await screen.findByText("Studio Night")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /leave/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(window.localStorage.getItem("athens-fm.active-membership")).toContain(
-        "participant_1",
-      );
-    });
+    expect(screen.getByLabelText(/your display name/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^join room$/i }),
+    ).toBeInTheDocument();
   });
 });

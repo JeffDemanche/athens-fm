@@ -1,20 +1,29 @@
-import { useMutation } from "@apollo/client/react";
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { useState, type FormEvent } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import { PageShell } from "@/composites/page-shell";
+import { RoomQueryState } from "@/composites/room-query-state";
 import { RoomDetail } from "@/features/room-detail/room-detail";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { JOIN_ROOM } from "@/graphql/participants";
-import type { ParticipantFields, RoomFields } from "@/graphql/rooms";
+import { GET_ROOM, type ParticipantFields, type RoomFields } from "@/graphql/rooms";
 import {
   getActiveMembership,
   isInAnotherRoom,
   setActiveMembership,
 } from "@/lib/membership";
 import { Button } from "@/primitives/button";
-import { Spinner } from "@/primitives/spinner";
+import { Input } from "@/primitives/input";
 import { Stack } from "@/primitives/stack";
 import { Text } from "@/primitives/text";
+
+type GetRoomResult = {
+  room: RoomFields | null;
+};
+
+type GetRoomVars = {
+  id: string;
+};
 
 type JoinRoomResult = {
   joinRoom: ParticipantFields & {
@@ -24,81 +33,77 @@ type JoinRoomResult = {
 
 type JoinRoomVars = {
   roomId: string;
+  name: string;
 };
 
 export function ParticipantRoomView() {
   const { roomId = "" } = useParams<{ roomId: string }>();
+  const code = roomId.trim().toUpperCase();
+  const existing = getActiveMembership();
+  const alreadyInThisRoom = Boolean(
+    existing && !isInAnotherRoom(existing, code),
+  );
+  const blockedByOtherRoom = isInAnotherRoom(existing, code);
+  const hostShouldUseDesk =
+    alreadyInThisRoom && existing?.role === "HOST";
+
   const { leaveRoom, loading: leaving } = useLeaveRoom();
-  const [joinRoom] = useMutation<JoinRoomResult, JoinRoomVars>(JOIN_ROOM);
-  const [ready, setReady] = useState(false);
-  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinRoom, { loading: joining }] = useMutation<
+    JoinRoomResult,
+    JoinRoomVars
+  >(JOIN_ROOM);
+  const [displayName, setDisplayName] = useState("");
+  const [ready, setReady] = useState(
+    alreadyInThisRoom && existing?.role === "GUEST",
+  );
+  const [joinError, setJoinError] = useState<string | null>(() => {
+    if (blockedByOtherRoom) {
+      return `This browser is already in room ${existing?.roomShortId}. Leave that room before joining another.`;
+    }
+    return null;
+  });
 
-  useEffect(() => {
-    let cancelled = false;
+  const { data, loading, error } = useQuery<GetRoomResult, GetRoomVars>(
+    GET_ROOM,
+    {
+      variables: { id: code },
+      skip: !code || ready || blockedByOtherRoom || hostShouldUseDesk,
+    },
+  );
 
-    async function ensureMembership() {
-      const code = roomId.trim().toUpperCase();
-      const existing = getActiveMembership();
+  if (hostShouldUseDesk && existing) {
+    return <Navigate to={`/rooms/${existing.roomShortId}/host`} replace />;
+  }
 
-      if (existing && !isInAnotherRoom(existing, code)) {
-        if (!cancelled) {
-          setReady(true);
-        }
-        return;
-      }
+  async function onJoin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setJoinError(null);
 
-      if (isInAnotherRoom(existing, code)) {
-        if (!cancelled) {
-          setJoinError(
-            `This browser is already in room ${existing?.roomShortId}. Leave that room before joining another.`,
-          );
-        }
-        return;
-      }
-
-      try {
-        const result = await joinRoom({ variables: { roomId: code } });
-        const participant = result.data?.joinRoom;
-        if (!participant?.room) {
-          throw new Error("Unable to join room");
-        }
-
-        // Strict Mode may remount before we finish; keep the first successful join.
-        if (cancelled) {
-          const latest = getActiveMembership();
-          if (!latest) {
-            setActiveMembership({
-              participantId: participant.id,
-              roomId: participant.room.id,
-              roomShortId: participant.room.shortId,
-              role: participant.role,
-            });
-          }
-          return;
-        }
-
-        setActiveMembership({
-          participantId: participant.id,
-          roomId: participant.room.id,
-          roomShortId: participant.room.shortId,
-          role: participant.role,
-        });
-        setReady(true);
-      } catch (error) {
-        if (!cancelled) {
-          setJoinError(
-            error instanceof Error ? error.message : "Unable to join room",
-          );
-        }
-      }
+    if (!displayName.trim()) {
+      return;
     }
 
-    void ensureMembership();
+    try {
+      const result = await joinRoom({
+        variables: { roomId: code, name: displayName },
+      });
+      const participant = result.data?.joinRoom;
+      if (!participant?.room) {
+        throw new Error("Unable to join room");
+      }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [joinRoom, roomId]);
+      setActiveMembership({
+        participantId: participant.id,
+        roomId: participant.room.id,
+        roomShortId: participant.room.shortId,
+        role: participant.role,
+        participantName: participant.name,
+      });
+      setReady(true);
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : "Unable to join room");
+    }
+  }
 
   return (
     <PageShell
@@ -129,7 +134,7 @@ export function ParticipantRoomView() {
         </div>
       </header>
 
-      {joinError ? (
+      {blockedByOtherRoom ? (
         <Stack gap="md">
           <Text tone="destructive">{joinError}</Text>
           <Button
@@ -142,12 +147,7 @@ export function ParticipantRoomView() {
             Back to home
           </Button>
         </Stack>
-      ) : !ready ? (
-        <div className="flex items-center gap-3 py-8">
-          <Spinner />
-          <Text tone="muted">Joining room…</Text>
-        </div>
-      ) : (
+      ) : ready ? (
         <RoomDetail roomId={roomId} roleLabel="Listening">
           <Stack
             gap="md"
@@ -163,6 +163,62 @@ export function ParticipantRoomView() {
             </Button>
           </Stack>
         </RoomDetail>
+      ) : loading || error || !data?.room ? (
+        <RoomQueryState
+          loading={loading}
+          errorMessage={error?.message}
+          missing={!loading && !error && !data?.room}
+        />
+      ) : (
+        <Stack gap="md">
+          <div>
+            <Text
+              as="p"
+              size="sm"
+              tone="muted"
+              className="font-medium tracking-[0.16em] uppercase"
+            >
+              Join room
+            </Text>
+            <Text as="h1" size="xl" className="mt-1">
+              {data.room.name}
+            </Text>
+            <Text
+              as="p"
+              className="mt-1 font-mono text-lg tracking-[0.2em] text-muted-foreground"
+            >
+              {data.room.shortId}
+            </Text>
+          </div>
+          <form onSubmit={onJoin}>
+            <Stack gap="md">
+              <Input
+                id="participant-display-name"
+                name="displayName"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Your display name"
+                required
+                maxLength={40}
+                autoComplete="nickname"
+                disabled={joining}
+                aria-label="Your display name"
+              />
+              {joinError ? (
+                <Text size="sm" tone="destructive">
+                  {joinError}
+                </Text>
+              ) : null}
+              <Button
+                type="submit"
+                className="h-12 w-full text-base"
+                disabled={joining || !displayName.trim()}
+              >
+                {joining ? "Joining…" : "Join room"}
+              </Button>
+            </Stack>
+          </form>
+        </Stack>
       )}
     </PageShell>
   );

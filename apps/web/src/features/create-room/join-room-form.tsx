@@ -21,6 +21,7 @@ type JoinRoomResult = {
 
 type JoinRoomVars = {
   roomId: string;
+  name: string;
 };
 
 type JoinRoomFormProps = {
@@ -30,6 +31,7 @@ type JoinRoomFormProps = {
 export function JoinRoomForm({ disabled = false }: JoinRoomFormProps) {
   const navigate = useNavigate();
   const [roomCode, setRoomCode] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [joinRoom, { loading, error }] = useMutation<
     JoinRoomResult,
@@ -41,7 +43,7 @@ export function JoinRoomForm({ disabled = false }: JoinRoomFormProps) {
     setLocalError(null);
 
     const code = roomCode.trim().toUpperCase();
-    if (code.length !== 5) {
+    if (code.length !== 5 || !displayName.trim()) {
       return;
     }
 
@@ -62,22 +64,32 @@ export function JoinRoomForm({ disabled = false }: JoinRoomFormProps) {
       return;
     }
 
-    const result = await joinRoom({ variables: { roomId: code } });
-    const participant = result.data?.joinRoom;
-    if (!participant?.room) {
-      return;
-    }
+    try {
+      const result = await joinRoom({
+        variables: { roomId: code, name: displayName },
+      });
+      const participant = result.data?.joinRoom;
+      if (!participant?.room) {
+        return;
+      }
 
-    setActiveMembership({
-      participantId: participant.id,
-      roomId: participant.room.id,
-      roomShortId: participant.room.shortId,
-      role: participant.role,
-    });
-    void navigate(`/rooms/${participant.room.shortId}`);
+      setActiveMembership({
+        participantId: participant.id,
+        roomId: participant.room.id,
+        roomShortId: participant.room.shortId,
+        role: participant.role,
+        participantName: participant.name,
+      });
+      void navigate(`/rooms/${participant.room.shortId}`);
+    } catch (joinError) {
+      setLocalError(
+        joinError instanceof Error ? joinError.message : "Unable to join room",
+      );
+    }
   }
 
   const blocked = disabled || Boolean(getActiveMembership());
+  const canSubmit = roomCode.trim().length === 5 && Boolean(displayName.trim());
 
   return (
     <form onSubmit={onSubmit}>
@@ -100,11 +112,23 @@ export function JoinRoomForm({ disabled = false }: JoinRoomFormProps) {
             className="font-mono tracking-[0.2em] uppercase"
             disabled={blocked || loading}
           />
+          <Input
+            id="join-display-name"
+            name="displayName"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            placeholder="Your display name"
+            required
+            maxLength={40}
+            autoComplete="nickname"
+            disabled={blocked || loading}
+            aria-label="Your display name"
+          />
         </Stack>
         <Button
           type="submit"
           variant="secondary"
-          disabled={blocked || loading || roomCode.trim().length !== 5}
+          disabled={blocked || loading || !canSubmit}
         >
           {loading ? "Joining…" : "Join room"}
         </Button>

@@ -25,6 +25,7 @@ export const CREATE_ROOM = gql`
       participant {
         id
         roomId
+        name
         role
         createdAt
         updatedAt
@@ -44,6 +45,7 @@ export type RoomFields = {
 export type ParticipantFields = {
   id: string;
   roomId: string;
+  name: string | null;
   role: "HOST" | "GUEST";
   createdAt: string;
   updatedAt: string;

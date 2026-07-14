@@ -5,6 +5,8 @@ export type ActiveMembership = {
   roomId: string;
   roomShortId: string;
   role: MembershipRole;
+  /** Present for guests; hosts are unnamed desk operators. */
+  participantName?: string | null;
 };
 
 const STORAGE_KEY = "athens-fm.active-membership";
@@ -34,11 +36,22 @@ export function getActiveMembership(): ActiveMembership | null {
       return null;
     }
 
+    if (
+      parsed.role === "GUEST" &&
+      (typeof parsed.participantName !== "string" || !parsed.participantName)
+    ) {
+      return null;
+    }
+
     return {
       participantId: parsed.participantId,
       roomId: parsed.roomId,
       roomShortId: parsed.roomShortId,
       role: parsed.role,
+      participantName:
+        typeof parsed.participantName === "string"
+          ? parsed.participantName
+          : null,
     };
   } catch {
     return null;

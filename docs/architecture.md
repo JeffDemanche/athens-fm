@@ -61,7 +61,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - `/rooms/:roomId/host` — host desk (full-viewport layout)
   - `/rooms/:roomId` — participant room view (mobile-web oriented)
 - **Host desk layout** (`views/host-room` + `features/host-desk`):
-  - Top bar — room name + participant/leave links
+  - Top bar — room name + room code + end-room control (cast/moderator desk; no participant-view link)
   - Main row — large **viewer** (YouTube embed / now playing) left; narrower **activity** feed right
   - Bottom row — horizontal **playlist** of upcoming tracks
   - Panel chrome via `composites/desk-panel`
@@ -86,13 +86,14 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 - **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql` + `WS /api/graphql` (subscriptions).
 - **Domain**:
   - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically
-  - `Participant` — `id`, `roomId` (many participants → one room), `role` (`HOST` | `GUEST`), timestamps; each participant belongs to exactly one room
-  - `RoomEvent` — `id`, `roomId`, `participantId`, `participantRole` (denormalized), `type` (`JOINED` | `LEFT`), timestamps; persisted on join/leave and published over Redis pub/sub for live subscribers
+  - `Participant` — `id`, `roomId`, `role` (`HOST` | `GUEST`), optional `name`/`nameKey` for guests only (unique per room, case-insensitive); hosts are unnamed desk operators
+  - `RoomEvent` — `id`, `roomId`, `participantId`, optional `participantName` + `participantRole` (denormalized), `type` (`JOINED` | `LEFT`), timestamps; persisted on join/leave and published over Redis pub/sub for live subscribers
 - **Room shortId**: Ambiguity-safe alphabet (`A–Z` / `2–9`, no `0/O/1/I/L`); unique; used in `/rooms/:roomId` URLs and join form.
-- **Participant API**: `createRoom` → `{ room, participant }` (host); `joinRoom(roomId)` → guest; `leaveRoom(participantId)`; `participant(id)`
+- **Participant API**: `createRoom(name)` → `{ room, participant }` (unnamed host); `joinRoom(roomId, name)` → named guest; `leaveRoom(participantId)`; `participant(id)`
 - **RoomEvent API**: `roomEvents(roomId)`; `Room.events`; subscription `roomEventAdded(roomId)` (accepts shortId or ObjectId; fans out by Mongo room id)
 - **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Transport: `graphql-ws` over WebSockets.
-- **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role }`. One active room per browser — create/join blocked while set; leave clears it.
+- **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role, participantName? }`. One active room per browser — create/join blocked while set; leave clears it. Hosts stay on `/rooms/:id/host` (no participant view).
+- **Display names**: Required for guests only; rejected with a user-facing error when already taken in that room (case-insensitive).
 - **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
 - **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts` for health/general; separate ioredis publisher+subscriber clients for GraphQL pub/sub).
 - **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant/RoomEvent tests use `mongodb-memory-server`.

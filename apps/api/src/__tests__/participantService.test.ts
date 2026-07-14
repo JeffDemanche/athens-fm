@@ -4,6 +4,7 @@ import { ParticipantRole } from "../entities/Participant.js";
 import type { Room } from "../entities/Room.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
 import { RoomEventType } from "../entities/RoomEvent.js";
+import { participantNameKey } from "../lib/participantName.js";
 import type { ParticipantRepository } from "../repositories/participantRepository.js";
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import type { RoomEventService } from "../services/roomEventService.js";
@@ -48,11 +49,22 @@ function createFakeParticipants(
     async findByRoomId(roomId) {
       return participants.filter((participant) => participant.roomId === roomId);
     },
+    async findByRoomIdAndNameKey(roomId, nameKey) {
+      return (
+        participants.find(
+          (participant) =>
+            participant.roomId === roomId && participant.nameKey === nameKey,
+        ) ?? null
+      );
+    },
     async create(input) {
       const now = new Date();
+      const name = input.name ?? null;
       const participant: Participant = {
         id: `participant_${participants.length + 1}`,
         roomId: input.roomId,
+        name,
+        nameKey: name ? participantNameKey(name) : null,
         role: input.role,
         createdAt: now,
         updatedAt: now,
@@ -86,6 +98,7 @@ function createFakeEvents(): RoomEventService & { events: RoomEvent[] } {
         id: `event_${events.length + 1}`,
         roomId: String(participant.roomId),
         participantId: participant.id,
+        participantName: participant.name ?? null,
         participantRole: participant.role,
         type: RoomEventType.JOINED,
         createdAt: now,
@@ -100,6 +113,7 @@ function createFakeEvents(): RoomEventService & { events: RoomEvent[] } {
         id: `event_${events.length + 1}`,
         roomId: String(participant.roomId),
         participantId: participant.id,
+        participantName: participant.name ?? null,
         participantRole: participant.role,
         type: RoomEventType.LEFT,
         createdAt: now,
@@ -121,6 +135,27 @@ describe("participantService", () => {
     updatedAt: now,
   };
 
+  it("hosts join without a name", async () => {
+    const events = createFakeEvents();
+    const service = createParticipantService(
+      createFakeParticipants(),
+      createFakeRooms([room]),
+      events,
+    );
+
+    const host = await service.joinAsHost("room_1");
+    expect(host).toMatchObject({
+      roomId: "room_1",
+      role: ParticipantRole.HOST,
+      name: null,
+    });
+    expect(events.events[0]).toMatchObject({
+      type: RoomEventType.JOINED,
+      participantName: null,
+      participantRole: ParticipantRole.HOST,
+    });
+  });
+
   it("joins a room as guest, records events, and leaves", async () => {
     const events = createFakeEvents();
     const service = createParticipantService(
@@ -129,15 +164,17 @@ describe("participantService", () => {
       events,
     );
 
-    const guest = await service.joinAsGuest("k7m2p");
+    const guest = await service.joinAsGuest("k7m2p", "Maya");
     expect(guest).toMatchObject({
       roomId: "room_1",
       role: ParticipantRole.GUEST,
+      name: "Maya",
     });
     expect(events.events).toEqual([
       expect.objectContaining({
         type: RoomEventType.JOINED,
         participantId: guest.id,
+        participantName: "Maya",
         roomId: "room_1",
       }),
     ]);
@@ -149,8 +186,23 @@ describe("participantService", () => {
       expect.objectContaining({
         type: RoomEventType.LEFT,
         participantId: guest.id,
+        participantName: "Maya",
       }),
     ]);
+  });
+
+  it("rejects duplicate names in the same room (case-insensitive)", async () => {
+    const service = createParticipantService(
+      createFakeParticipants(),
+      createFakeRooms([room]),
+      createFakeEvents(),
+    );
+
+    await service.joinAsGuest("K7M2P", "Maya");
+    await expect(service.joinAsGuest("K7M2P", " maya ")).rejects.toMatchObject({
+      message: /already taken/i,
+      statusCode: 409,
+    });
   });
 
   it("rejects join when room is missing", async () => {
@@ -160,7 +212,7 @@ describe("participantService", () => {
       createFakeEvents(),
     );
 
-    await expect(service.joinAsGuest("MISSING")).rejects.toMatchObject({
+    await expect(service.joinAsGuest("MISSING", "Maya")).rejects.toMatchObject({
       message: "Room not found",
       statusCode: 404,
     });

@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery } from "@apollo/client/react";
 import { RoomQueryState } from "@/composites/room-query-state";
 import { ActivityFeed } from "@/features/host-desk/activity-feed";
@@ -74,22 +74,17 @@ export function HostRoomView() {
               {room.shortId}
             </Text>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild size="sm">
-              <Link to={`/rooms/${room.shortId}`}>Open participant view</Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={leaving}
-              onClick={() => {
-                void leaveRoom();
-              }}
-            >
-              {leaving ? "Leaving…" : "Leave room"}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={leaving}
+            onClick={() => {
+              void leaveRoom();
+            }}
+          >
+            {leaving ? "Leaving…" : "End room"}
+          </Button>
         </div>
       </header>
 

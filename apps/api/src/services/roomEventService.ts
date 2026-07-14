@@ -25,6 +25,7 @@ export function createRoomEventService(
       const event = await repo.create({
         roomId: String(participant.roomId),
         participantId: participant.id,
+        participantName: participant.name ?? null,
         participantRole: participant.role,
         type: RoomEventType.JOINED,
       });
@@ -36,6 +37,7 @@ export function createRoomEventService(
       const event = await repo.create({
         roomId: String(participant.roomId),
         participantId: participant.id,
+        participantName: participant.name ?? null,
         participantRole: participant.role,
         type: RoomEventType.LEFT,
       });

@@ -5,6 +5,7 @@ export const ROOM_EVENT_FIELDS = gql`
     id
     roomId
     participantId
+    participantName
     participantRole
     type
     createdAt
@@ -33,6 +34,7 @@ export type RoomEventFields = {
   id: string;
   roomId: string;
   participantId: string;
+  participantName: string | null;
   participantRole: "HOST" | "GUEST";
   type: "JOINED" | "LEFT";
   createdAt: string;

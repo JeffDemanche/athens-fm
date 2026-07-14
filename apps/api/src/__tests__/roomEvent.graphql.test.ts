@@ -36,7 +36,7 @@ describe("GraphQL RoomEvent API", () => {
           mutation CreateRoom($name: String!) {
             createRoom(name: $name) {
               room { id shortId }
-              participant { id role }
+              participant { id role name }
             }
           }
         `,
@@ -46,7 +46,7 @@ describe("GraphQL RoomEvent API", () => {
     expect(response.body.errors).toBeUndefined();
     return response.body.data.createRoom as {
       room: { id: string; shortId: string };
-      participant: { id: string; role: string };
+      participant: { id: string; role: string; name: string | null };
     };
   }
 
@@ -57,11 +57,11 @@ describe("GraphQL RoomEvent API", () => {
       .post("/api/graphql")
       .send({
         query: `
-          mutation JoinRoom($roomId: ID!) {
-            joinRoom(roomId: $roomId) { id }
+          mutation JoinRoom($roomId: ID!, $name: String!) {
+            joinRoom(roomId: $roomId, name: $name) { id }
           }
         `,
-        variables: { roomId: created.room.shortId },
+        variables: { roomId: created.room.shortId, name: "Maya" },
       });
     expect(joinResponse.body.errors).toBeUndefined();
     const guestId = joinResponse.body.data.joinRoom.id as string;
@@ -86,12 +86,14 @@ describe("GraphQL RoomEvent API", () => {
             roomEvents(roomId: $roomId) {
               type
               participantId
+              participantName
               participantRole
               participant { id }
             }
             room(id: $roomId) {
               events {
                 type
+                participantName
                 participantRole
               }
             }
@@ -105,26 +107,29 @@ describe("GraphQL RoomEvent API", () => {
       {
         type: "JOINED",
         participantId: created.participant.id,
+        participantName: null,
         participantRole: "HOST",
         participant: { id: created.participant.id },
       },
       {
         type: "JOINED",
         participantId: guestId,
+        participantName: "Maya",
         participantRole: "GUEST",
         participant: null,
       },
       {
         type: "LEFT",
         participantId: guestId,
+        participantName: "Maya",
         participantRole: "GUEST",
         participant: null,
       },
     ]);
     expect(eventsResponse.body.data.room.events).toEqual([
-      { type: "JOINED", participantRole: "HOST" },
-      { type: "JOINED", participantRole: "GUEST" },
-      { type: "LEFT", participantRole: "GUEST" },
+      { type: "JOINED", participantName: null, participantRole: "HOST" },
+      { type: "JOINED", participantName: "Maya", participantRole: "GUEST" },
+      { type: "LEFT", participantName: "Maya", participantRole: "GUEST" },
     ]);
   });
 });

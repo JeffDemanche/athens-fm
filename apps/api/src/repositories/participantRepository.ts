@@ -4,10 +4,13 @@ import {
   ParticipantRole,
   type Participant,
 } from "../entities/Participant.js";
+import { participantNameKey } from "../lib/participantName.js";
 
 function toParticipant(doc: {
   _id: mongoose.Types.ObjectId;
   roomId: string | mongoose.Types.ObjectId;
+  name?: string | null;
+  nameKey?: string | null;
   role: ParticipantRole;
   createdAt: Date;
   updatedAt: Date;
@@ -15,6 +18,8 @@ function toParticipant(doc: {
   return {
     id: String(doc._id),
     roomId: String(doc.roomId),
+    name: doc.name ?? null,
+    nameKey: doc.nameKey ?? null,
     role: doc.role,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -42,16 +47,32 @@ export const participantRepository = {
     return docs.map((doc) => toParticipant(doc));
   },
 
+  async findByRoomIdAndNameKey(
+    roomId: string,
+    nameKey: string,
+  ): Promise<Participant | null> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      return null;
+    }
+
+    const doc = await ParticipantModel.findOne({ roomId, nameKey }).exec();
+    return doc ? toParticipant(doc) : null;
+  },
+
   async create(input: {
     roomId: string;
+    name?: string | null;
     role: ParticipantRole;
   }): Promise<Participant> {
     if (!mongoose.isValidObjectId(input.roomId)) {
       throw new Error("Invalid room id");
     }
 
+    const name = input.name ?? null;
     const doc = await ParticipantModel.create({
       roomId: input.roomId,
+      name,
+      nameKey: name ? participantNameKey(name) : null,
       role: input.role,
     });
     return toParticipant(doc);
