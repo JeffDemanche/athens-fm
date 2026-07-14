@@ -20,7 +20,7 @@ export class Room {
   @Field(() => ID)
   id!: string;
 
-  @Field()
+  @Field(() => String)
   @prop({
     required: true,
     unique: true,
@@ -29,15 +29,17 @@ export class Room {
     minlength: SHORT_ID_LENGTH,
     maxlength: SHORT_ID_LENGTH,
     match: /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/,
+    type: String,
   })
   shortId!: string;
 
-  @Field()
+  @Field(() => String)
   @prop({
     required: true,
     trim: true,
     minlength: 1,
     maxlength: 120,
+    type: String,
   })
   name!: string;
 

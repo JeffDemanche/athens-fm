@@ -7,10 +7,15 @@ import {
 } from "../repositories/participantRepository.js";
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import { roomRepository } from "../repositories/roomRepository.js";
+import {
+  roomEventService,
+  type RoomEventService,
+} from "./roomEventService.js";
 
 export function createParticipantService(
   repo: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
+  events: RoomEventService = roomEventService,
 ) {
   return {
     async getById(id: string): Promise<Participant | null> {
@@ -31,7 +36,12 @@ export function createParticipantService(
         throw new AppError("Room not found", 404);
       }
 
-      return repo.create({ roomId: room.id, role: ParticipantRole.HOST });
+      const participant = await repo.create({
+        roomId: room.id,
+        role: ParticipantRole.HOST,
+      });
+      await events.recordJoin(participant);
+      return participant;
     },
 
     async joinAsGuest(roomIdOrShortId: string): Promise<Participant> {
@@ -40,7 +50,12 @@ export function createParticipantService(
         throw new AppError("Room not found", 404);
       }
 
-      return repo.create({ roomId: room.id, role: ParticipantRole.GUEST });
+      const participant = await repo.create({
+        roomId: room.id,
+        role: ParticipantRole.GUEST,
+      });
+      await events.recordJoin(participant);
+      return participant;
     },
 
     async leave(participantId: string): Promise<boolean> {
@@ -49,6 +64,7 @@ export function createParticipantService(
         throw new AppError("Participant not found", 404);
       }
 
+      await events.recordLeave(existing);
       return repo.deleteById(participantId);
     },
   };

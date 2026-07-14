@@ -1,79 +1,129 @@
+import { useEffect, useRef } from "react";
+import { useQuery, useSubscription } from "@apollo/client/react";
 import { DeskPanel } from "@/composites/desk-panel";
+import {
+  GET_ROOM_EVENTS,
+  ROOM_EVENT_ADDED,
+  type RoomEventFields,
+} from "@/graphql/room-events";
 import { Text } from "@/primitives/text";
 import { cn } from "@/lib/utils";
 
-export type ActivityItem = {
-  id: string;
-  actor: string;
-  action: string;
-  detail?: string;
-  at: string;
+type GetRoomEventsResult = {
+  roomEvents: RoomEventFields[];
+};
+
+type RoomEventAddedResult = {
+  roomEventAdded: RoomEventFields;
+};
+
+type RoomIdVars = {
+  roomId: string;
 };
 
 type ActivityFeedProps = {
+  roomId: string;
   className?: string;
-  items?: ActivityItem[];
 };
 
-const PLACEHOLDER_ITEMS: ActivityItem[] = [
-  {
-    id: "1",
-    actor: "Maya",
-    action: "voted up",
-    detail: "Midnight City",
-    at: "just now",
-  },
-  {
-    id: "2",
-    actor: "Theo",
-    action: "added to queue",
-    detail: "Electric Feel",
-    at: "1m ago",
-  },
-  {
-    id: "3",
-    actor: "Jun",
-    action: "voted down",
-    detail: "Blinding Lights",
-    at: "3m ago",
-  },
-];
+function roleLabel(role: RoomEventFields["participantRole"]): string {
+  return role === "HOST" ? "Host" : "Guest";
+}
 
-export function ActivityFeed({
-  className,
-  items = PLACEHOLDER_ITEMS,
-}: ActivityFeedProps) {
+function eventCopy(event: RoomEventFields): string {
+  const actor = roleLabel(event.participantRole);
+  if (event.type === "JOINED") {
+    return `${actor} joined the room`;
+  }
+  return `${actor} left the room`;
+}
+
+function formatEventTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const { data, loading } = useQuery<GetRoomEventsResult, RoomIdVars>(
+    GET_ROOM_EVENTS,
+    {
+      variables: { roomId },
+      skip: !roomId,
+    },
+  );
+
+  useSubscription<RoomEventAddedResult, RoomIdVars>(ROOM_EVENT_ADDED, {
+    variables: { roomId },
+    skip: !roomId,
+    onData: ({ client, data: subscriptionData }) => {
+      const event = subscriptionData.data?.roomEventAdded;
+      if (!event) {
+        return;
+      }
+
+      client.cache.updateQuery<GetRoomEventsResult, RoomIdVars>(
+        { query: GET_ROOM_EVENTS, variables: { roomId } },
+        (existing) => {
+          const current = existing?.roomEvents ?? [];
+          if (current.some((item) => item.id === event.id)) {
+            return existing ?? { roomEvents: current };
+          }
+          return { roomEvents: [...current, event] };
+        },
+      );
+    },
+  });
+
+  const events = data?.roomEvents ?? [];
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    list.scrollTop = list.scrollHeight;
+  }, [events.length]);
+
   return (
     <DeskPanel
       title="Activity"
-      description="Votes and queue moves from the room"
+      description="Live joins and leaves in this room"
       className={cn(className)}
     >
-      {items.length === 0 ? (
+      {loading && events.length === 0 ? (
         <div className="flex h-full items-center justify-center px-4 py-8">
           <Text tone="muted" size="sm" className="text-center">
-            Participant actions will show up here.
+            Loading activity…
+          </Text>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="flex h-full items-center justify-center px-4 py-8">
+          <Text tone="muted" size="sm" className="text-center">
+            Room events will show up here as people join and leave.
           </Text>
         </div>
       ) : (
-        <ul className="h-full space-y-0 overflow-y-auto px-2 py-2">
-          {items.map((item) => (
+        <ul
+          ref={listRef}
+          className="h-full space-y-0 overflow-y-auto px-2 py-2"
+        >
+          {events.map((event) => (
             <li
-              key={item.id}
+              key={event.id}
               className="border-b border-border/50 px-2 py-3 last:border-b-0"
             >
               <Text as="p" size="sm">
-                <span className="font-medium">{item.actor}</span>{" "}
-                <span className="text-muted-foreground">{item.action}</span>
-                {item.detail ? (
-                  <>
-                    {" "}
-                    <span className="font-medium">{item.detail}</span>
-                  </>
-                ) : null}
+                {eventCopy(event)}
               </Text>
               <Text as="p" size="sm" tone="muted" className="mt-0.5 text-xs">
-                {item.at}
+                {formatEventTime(event.createdAt)}
               </Text>
             </li>
           ))}

@@ -16,6 +16,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "graphql": "^16.14.2",
+    "graphql-ws": "^6.1.0",
     "lucide-react": "^0.525.0",
     "radix-ui": "^1.6.2",
     "react": "^19.2.7",

@@ -2,6 +2,7 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { JOIN_ROOM } from "../graphql/participants";
+import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
 
@@ -22,6 +23,48 @@ const getRoomMock = {
   result: {
     data: {
       room,
+    },
+  },
+};
+
+const getRoomEventsMock = {
+  request: {
+    query: GET_ROOM_EVENTS,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      roomEvents: [
+        {
+          __typename: "RoomEvent",
+          id: "event_1",
+          roomId: "abc123",
+          participantId: "participant_host",
+          participantRole: "HOST",
+          type: "JOINED",
+          createdAt: "2026-07-13T00:00:00.000Z",
+        },
+      ],
+    },
+  },
+};
+
+const roomEventAddedMock = {
+  request: {
+    query: ROOM_EVENT_ADDED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      roomEventAdded: {
+        __typename: "RoomEvent",
+        id: "event_1",
+        roomId: "abc123",
+        participantId: "participant_host",
+        participantRole: "HOST",
+        type: "JOINED",
+        createdAt: "2026-07-13T00:00:00.000Z",
+      },
     },
   },
 };
@@ -53,7 +96,15 @@ const joinRoomMock = {
 
 function renderApp(path: string) {
   return render(
-    <MockedProvider mocks={[getRoomMock, joinRoomMock, getRoomMock]}>
+    <MockedProvider
+      mocks={[
+        getRoomMock,
+        getRoomEventsMock,
+        roomEventAddedMock,
+        joinRoomMock,
+        getRoomMock,
+      ]}
+    >
       <MemoryRouter initialEntries={[path]}>
         <App />
       </MemoryRouter>
@@ -85,6 +136,7 @@ describe("App routing", () => {
     expect(
       screen.getByRole("heading", { name: /now playing/i }),
     ).toBeInTheDocument();
+    expect(await screen.findByText(/host joined the room/i)).toBeInTheDocument();
     unmount();
 
     renderApp("/rooms/K7M2P");

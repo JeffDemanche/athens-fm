@@ -2,6 +2,7 @@ import { Arg, Ctx, FieldResolver, ID, Mutation, Query, Resolver, Root } from "ty
 import { CreateRoomPayload } from "../../entities/CreateRoomPayload.js";
 import { Participant } from "../../entities/Participant.js";
 import { Room } from "../../entities/Room.js";
+import { RoomEvent } from "../../entities/RoomEvent.js";
 import type { GraphQLContext } from "../context.js";
 
 @Resolver(() => Room)
@@ -21,7 +22,7 @@ export class RoomResolver {
 
   @Mutation(() => CreateRoomPayload)
   async createRoom(
-    @Arg("name") name: string,
+    @Arg("name", () => String) name: string,
     @Ctx() context: GraphQLContext,
   ): Promise<CreateRoomPayload> {
     const room = await context.services.room.create(name);
@@ -35,5 +36,13 @@ export class RoomResolver {
     @Ctx() context: GraphQLContext,
   ): Promise<Participant[]> {
     return context.services.participant.listByRoom(room.id);
+  }
+
+  @FieldResolver(() => [RoomEvent])
+  async events(
+    @Root() room: Room,
+    @Ctx() context: GraphQLContext,
+  ): Promise<RoomEvent[]> {
+    return context.services.roomEvent.listByRoom(room.id);
   }
 }

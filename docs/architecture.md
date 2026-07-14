@@ -40,7 +40,7 @@ Compose services:
 - **mongo** — MongoDB 7 (compose network only; not published to host to avoid local Mongo port clashes)
 - **redis** — Redis 7 (compose network only)
 - **api** — Express via `tsx watch`, mounts `apps/api/src`, waits for healthy mongo/redis, published on `3001`
-- **web** — Vite HMR on `0.0.0.0:5173`, published as `WEB_HOST_PORT` (default `5173`), mounts `apps/web/src` (+ key config files), proxies `/api` → `http://api:3001`
+- **web** — Vite HMR on `0.0.0.0:5173`, published as `WEB_HOST_PORT` (default `5173`), mounts `apps/web/src` (+ key config files), proxies `/api` → `http://api:3001` (HTTP + WebSocket)
 - **Host port overrides**: `.env` → `WEB_HOST_PORT`, `API_HOST_PORT` (Vite HMR `clientPort` follows `WEB_HOST_PORT`)
 
 Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173` so HMR works through published ports.
@@ -64,9 +64,11 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Top bar — room name + participant/leave links
   - Main row — large **viewer** (YouTube embed / now playing) left; narrower **activity** feed right
   - Bottom row — horizontal **playlist** of upcoming tracks
-  - Panel chrome via `composites/desk-panel`; queue/vote models still pending (placeholder content for now)
+  - Panel chrome via `composites/desk-panel`
+  - **Activity feed** — chronological `RoomEvent` stream (join/leave); seeded via `roomEvents` query + live via `roomEventAdded` subscription (not a participant list)
 - **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
-- **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL.
+  - HTTP for queries/mutations; WebSocket (`graphql-ws`) for subscriptions on the same path
+- **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL HTTP + WS (`ws: true` in Vite).
 - **Tests**: Jest + Testing Library (`jest.config.ts`, `jest.setup.ts`).
 - **UI convention**: Prefer shadcn components; add with `npx shadcn@latest add <name>` from `apps/web`.
 - **shadcn path resolution**: Keep `@/*` → `./src/*` in `apps/web/tsconfig.json`; `components.json` maps `ui` → `@/primitives`.
@@ -76,21 +78,24 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 - **Stack**: Express 5, Apollo Server, TypeGraphQL, Typegoose (Mongoose), ioredis, Zod, TypeScript (NodeNext ESM).
 - **Layered architecture**:
   - **Entities** — `src/entities/` shared Typegoose + TypeGraphQL classes (single source of truth for Mongo schema + GraphQL object types)
-  - **GraphQL API** — `src/graphql/` (`buildSchema` from TypeGraphQL resolvers, Apollo server, context)
-  - **Service** — `src/services/` (business rules; e.g. `roomService`, `participantService`)
+  - **GraphQL API** — `src/graphql/` (`buildSchema` from TypeGraphQL resolvers, Apollo server, context, Redis-backed pub/sub, `graphql-ws` subscriptions)
+  - **Service** — `src/services/` (business rules; e.g. `roomService`, `participantService`, `roomEventService`)
   - **Repository** — `src/repositories/` (Mongo access via Typegoose models)
-- **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`); loads `reflect-metadata` for decorators.
-- **App factory**: async `createApp()` in `src/app.ts` — used by tests, local server, and the Vercel adapter.
-- **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql`.
+- **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`) via `http.Server`; loads `reflect-metadata` for decorators; attaches WebSocket subscriptions on `/api/graphql`.
+- **App factory**: async `createApp()` in `src/app.ts` — HTTP GraphQL only (used by tests, local server, and the Vercel adapter). Subscriptions require the long-lived Node entry (`src/index.ts`).
+- **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql` + `WS /api/graphql` (subscriptions).
 - **Domain**:
-  - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members
+  - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically
   - `Participant` — `id`, `roomId` (many participants → one room), `role` (`HOST` | `GUEST`), timestamps; each participant belongs to exactly one room
+  - `RoomEvent` — `id`, `roomId`, `participantId`, `participantRole` (denormalized), `type` (`JOINED` | `LEFT`), timestamps; persisted on join/leave and published over Redis pub/sub for live subscribers
 - **Room shortId**: Ambiguity-safe alphabet (`A–Z` / `2–9`, no `0/O/1/I/L`); unique; used in `/rooms/:roomId` URLs and join form.
 - **Participant API**: `createRoom` → `{ room, participant }` (host); `joinRoom(roomId)` → guest; `leaveRoom(participantId)`; `participant(id)`
+- **RoomEvent API**: `roomEvents(roomId)`; `Room.events`; subscription `roomEventAdded(roomId)` (accepts shortId or ObjectId; fans out by Mongo room id)
+- **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Transport: `graphql-ws` over WebSockets.
 - **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role }`. One active room per browser — create/join blocked while set; leave clears it.
 - **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
-- **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts`).
-- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant tests use `mongodb-memory-server`.
+- **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts` for health/general; separate ioredis publisher+subscriber clients for GraphQL pub/sub).
+- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant/RoomEvent tests use `mongodb-memory-server`.
 
 ## Vercel deployment
 
@@ -99,9 +104,10 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
 - **Serverless entry**: `api/index.ts` lazily creates the Express/Apollo app and connects MongoDB when `MONGODB_URI` is set.
+- **Realtime caveat**: GraphQL subscriptions (WebSocket + Redis pub/sub) need a long-lived Node process (Docker/`src/index.ts`). The Vercel serverless adapter serves HTTP GraphQL only — historical `roomEvents` queries still work; live pushes do not on that path.
 - **Env vars** (set in Vercel project + local `.env`):
   - `MONGODB_URI` — Atlas (or other) connection string
-  - `REDIS_URL` — managed Redis (e.g. Upstash) when needed in production
+  - `REDIS_URL` — managed Redis (e.g. Upstash) for GraphQL pub/sub across API instances when using a long-lived server
   - `CORS_ORIGIN` — production web origin(s), comma-separated if multiple
   - `PORT` — local/docker only
   - `VITE_GRAPHQL_URL` — optional; defaults to `/api/graphql`
@@ -128,6 +134,6 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 ## Open / undecided
 
 - Auth strategy not chosen.
-- Real-time transport (WebSocket vs polling vs SSE) not chosen.
-- Production Redis provider not chosen.
+- Production Redis provider not chosen (Upstash vs other); local Docker Redis is the default broker for subscriptions.
+- Hosting for production WebSocket subscriptions (long-lived Node vs alternative realtime) not chosen — Vercel serverless entry is HTTP-only today.
 - Queue / vote / track models not defined yet.

@@ -95,7 +95,7 @@ export function HostRoomView() {
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <VideoViewer className="min-h-[14rem]" />
-        <ActivityFeed className="min-h-[12rem]" />
+        <ActivityFeed roomId={room.id} className="min-h-[12rem]" />
       </div>
 
       <PlaylistPanel />
