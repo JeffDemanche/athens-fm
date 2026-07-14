@@ -4,6 +4,7 @@ import { RoomQueryState } from "@/composites/room-query-state";
 import { ActivityFeed } from "@/features/host-desk/activity-feed";
 import { PlaylistPanel } from "@/features/host-desk/playlist-panel";
 import { VideoViewer } from "@/features/host-desk/video-viewer";
+import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { GET_ROOM, type RoomFields } from "@/graphql/rooms";
 import { Button } from "@/primitives/button";
 import { Text } from "@/primitives/text";
@@ -18,6 +19,7 @@ type GetRoomVars = {
 
 export function HostRoomView() {
   const { roomId = "" } = useParams<{ roomId: string }>();
+  const { leaveRoom, loading: leaving } = useLeaveRoom();
   const { data, loading, error } = useQuery<GetRoomResult, GetRoomVars>(
     GET_ROOM,
     {
@@ -55,13 +57,39 @@ export function HostRoomView() {
             {room.name}
           </Text>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link to={`/rooms/${roomId}`}>Open participant view</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/">Leave room</Link>
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="rounded-md border border-border/80 bg-secondary/60 px-3 py-1.5 text-right">
+            <Text
+              as="p"
+              size="sm"
+              tone="muted"
+              className="font-medium tracking-[0.16em] uppercase"
+            >
+              Room code
+            </Text>
+            <Text
+              as="p"
+              className="font-mono text-2xl font-semibold tracking-[0.28em]"
+            >
+              {room.shortId}
+            </Text>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link to={`/rooms/${room.shortId}`}>Open participant view</Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={leaving}
+              onClick={() => {
+                void leaveRoom();
+              }}
+            >
+              {leaving ? "Leaving…" : "Leave room"}
+            </Button>
+          </div>
         </div>
       </header>
 

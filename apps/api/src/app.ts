@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 import { expressMiddleware } from "@as-integrations/express5";
 import cors from "cors";
 import express from "express";
@@ -8,7 +10,7 @@ import { healthRouter } from "./routes/health.js";
 
 export async function createApp() {
   const app = express();
-  const apollo = createApolloServer();
+  const apollo = await createApolloServer();
   await apollo.start();
 
   app.use(

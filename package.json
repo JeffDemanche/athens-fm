@@ -12,6 +12,7 @@
     "dev:local": "concurrently -n web,api -c cyan,magenta \"npm run dev -w @athens-fm/web\" \"npm run dev -w @athens-fm/api\"",
     "dev:web": "npm run dev -w @athens-fm/web",
     "dev:api": "npm run dev -w @athens-fm/api",
+    "db:reset": "bash scripts/reset-mongo.sh",
     "build": "npm run build -w @athens-fm/web && npm run build -w @athens-fm/api",
     "build:web": "npm run build -w @athens-fm/web",
     "build:api": "npm run build -w @athens-fm/api",

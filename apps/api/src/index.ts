@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "reflect-metadata";
 import { createApp } from "./app.js";
 import { connectMongo } from "./config/mongo.js";
 import { connectRedis } from "./config/redis.js";

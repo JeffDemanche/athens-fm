@@ -24,7 +24,7 @@ describe("GraphQL Room API", () => {
     }
   });
 
-  it("creates and queries a room", async () => {
+  it("creates a room with a host participant and queries by shortId", async () => {
     const app = await createApp();
 
     const createResponse = await request(app)
@@ -33,8 +33,16 @@ describe("GraphQL Room API", () => {
         query: `
           mutation CreateRoom($name: String!) {
             createRoom(name: $name) {
-              id
-              name
+              room {
+                id
+                shortId
+                name
+              }
+              participant {
+                id
+                roomId
+                role
+              }
             }
           }
         `,
@@ -43,31 +51,49 @@ describe("GraphQL Room API", () => {
 
     expect(createResponse.status).toBe(200);
     expect(createResponse.body.errors).toBeUndefined();
-    expect(createResponse.body.data.createRoom).toMatchObject({
+
+    const payload = createResponse.body.data.createRoom;
+    expect(payload.room).toMatchObject({
       name: "Democratic Disco",
     });
+    expect(payload.room.shortId).toMatch(
+      /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/,
+    );
+    expect(payload.participant).toMatchObject({
+      roomId: payload.room.id,
+      role: "HOST",
+    });
 
-    const roomId = createResponse.body.data.createRoom.id as string;
+    const shortId = payload.room.shortId as string;
+    const mongoId = payload.room.id as string;
 
-    const queryResponse = await request(app)
+    const byShortId = await request(app)
       .post("/api/graphql")
       .send({
         query: `
           query Room($id: ID!) {
             room(id: $id) {
               id
+              shortId
               name
+              participants {
+                id
+                role
+              }
             }
           }
         `,
-        variables: { id: roomId },
+        variables: { id: shortId.toLowerCase() },
       });
 
-    expect(queryResponse.status).toBe(200);
-    expect(queryResponse.body.errors).toBeUndefined();
-    expect(queryResponse.body.data.room).toEqual({
-      id: roomId,
+    expect(byShortId.status).toBe(200);
+    expect(byShortId.body.errors).toBeUndefined();
+    expect(byShortId.body.data.room).toMatchObject({
+      id: mongoId,
+      shortId,
       name: "Democratic Disco",
     });
+    expect(byShortId.body.data.room.participants).toHaveLength(1);
+    expect(byShortId.body.data.room.participants[0].role).toBe("HOST");
   });
 });

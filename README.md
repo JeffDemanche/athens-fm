@@ -28,6 +28,7 @@ cp apps/api/.env.example apps/api/.env
 ```bash
 npm run dev        # build images + run mongo, redis, api, Vite HMR
 npm run dev:stop   # stop the whole stack
+npm run db:reset   # drop the local Docker Mongo `athens-fm` database
 ```
 
 Open the Vite app on `WEB_HOST_PORT` (default http://localhost:5173). HMR and API reload run inside containers with source mounts.

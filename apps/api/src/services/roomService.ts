@@ -3,7 +3,7 @@ import {
   roomRepository,
   type RoomRepository,
 } from "../repositories/roomRepository.js";
-import type { Room } from "../types/room.js";
+import type { Room } from "../entities/Room.js";
 
 export function createRoomService(repo: RoomRepository = roomRepository) {
   return {

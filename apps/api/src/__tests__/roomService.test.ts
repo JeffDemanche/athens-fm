@@ -1,5 +1,5 @@
 import { createRoomService } from "../services/roomService.js";
-import type { Room } from "../types/room.js";
+import type { Room } from "../entities/Room.js";
 import type { RoomRepository } from "../repositories/roomRepository.js";
 
 function createFakeRepo(seed: Room[] = []): RoomRepository {
@@ -7,7 +7,12 @@ function createFakeRepo(seed: Room[] = []): RoomRepository {
 
   return {
     async findById(id) {
-      return rooms.find((room) => room.id === id) ?? null;
+      const normalized = id.trim().toUpperCase();
+      return (
+        rooms.find(
+          (room) => room.id === id || room.shortId === normalized,
+        ) ?? null
+      );
     },
     async findAll() {
       return [...rooms];
@@ -16,6 +21,7 @@ function createFakeRepo(seed: Room[] = []): RoomRepository {
       const now = new Date();
       const room: Room = {
         id: `room_${rooms.length + 1}`,
+        shortId: `A${String(rooms.length + 1).padStart(4, "2")}`,
         name: input.name,
         createdAt: now,
         updatedAt: now,
@@ -27,12 +33,13 @@ function createFakeRepo(seed: Room[] = []): RoomRepository {
 }
 
 describe("roomService", () => {
-  it("creates a room with a trimmed name", async () => {
+  it("creates a room with a trimmed name and shortId", async () => {
     const service = createRoomService(createFakeRepo());
     const room = await service.create("  Late Night  ");
 
     expect(room.name).toBe("Late Night");
     expect(room.id).toBeTruthy();
+    expect(room.shortId).toHaveLength(5);
   });
 
   it("rejects an empty name", async () => {
@@ -44,12 +51,13 @@ describe("roomService", () => {
     });
   });
 
-  it("returns a room by id", async () => {
+  it("returns a room by id or shortId", async () => {
     const now = new Date();
     const service = createRoomService(
       createFakeRepo([
         {
-          id: "abc",
+          id: "mongo-abc",
+          shortId: "K7M2P",
           name: "Studio A",
           createdAt: now,
           updatedAt: now,
@@ -57,8 +65,12 @@ describe("roomService", () => {
       ]),
     );
 
-    await expect(service.getById("abc")).resolves.toMatchObject({
-      id: "abc",
+    await expect(service.getById("mongo-abc")).resolves.toMatchObject({
+      shortId: "K7M2P",
+      name: "Studio A",
+    });
+    await expect(service.getById("k7m2p")).resolves.toMatchObject({
+      id: "mongo-abc",
       name: "Studio A",
     });
     await expect(service.getById("missing")).resolves.toBeNull();

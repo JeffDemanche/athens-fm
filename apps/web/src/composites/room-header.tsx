@@ -21,9 +21,22 @@ export function RoomHeader({ room, roleLabel }: RoomHeaderProps) {
       <Text as="h1" size="xl" className="break-words sm:text-3xl">
         {room.name}
       </Text>
-      <Text as="p" size="sm" tone="muted" className="font-mono">
-        {room.id}
-      </Text>
+      <div className="rounded-md border border-border/80 bg-secondary/60 px-3 py-2">
+        <Text
+          as="p"
+          size="sm"
+          tone="muted"
+          className="font-medium tracking-[0.16em] uppercase"
+        >
+          Room code
+        </Text>
+        <Text
+          as="p"
+          className="font-mono text-3xl font-semibold tracking-[0.28em]"
+        >
+          {room.shortId}
+        </Text>
+      </div>
     </Stack>
   );
 }

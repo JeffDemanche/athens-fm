@@ -34,6 +34,7 @@ Workspaces are npm workspaces (`apps/*`). Root scripts orchestrate Dockerized `d
 | `npm run dev` | `docker compose up --build` — builds images, starts mongo + redis + api + web, watches source |
 | `npm run dev:stop` | `docker compose down --remove-orphans` — stops the stack |
 | `npm run dev:local` | Host-only web+api (no Docker); use when mongo/redis already run elsewhere |
+| `npm run db:reset` | Drops the `athens-fm` DB inside the running `athens-fm-mongo` container (`scripts/reset-mongo.sh`) |
 
 Compose services:
 - **mongo** — MongoDB 7 (compose network only; not published to host to avoid local Mongo port clashes)
@@ -72,19 +73,24 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 
 ## Backend (`apps/api`)
 
-- **Stack**: Express 5, Apollo Server, Mongoose, ioredis, Zod, TypeScript (NodeNext ESM).
+- **Stack**: Express 5, Apollo Server, TypeGraphQL, Typegoose (Mongoose), ioredis, Zod, TypeScript (NodeNext ESM).
 - **Layered architecture**:
-  - **GraphQL API** — `src/graphql/` (typeDefs, resolvers, Apollo server, context)
-  - **Service** — `src/services/` (business rules; e.g. `roomService`)
-  - **Repository** — `src/repositories/` (Mongo access; e.g. `roomRepository`)
-  - **Models** — `src/models/` (Mongoose schemas; e.g. `Room`)
-- **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`).
+  - **Entities** — `src/entities/` shared Typegoose + TypeGraphQL classes (single source of truth for Mongo schema + GraphQL object types)
+  - **GraphQL API** — `src/graphql/` (`buildSchema` from TypeGraphQL resolvers, Apollo server, context)
+  - **Service** — `src/services/` (business rules; e.g. `roomService`, `participantService`)
+  - **Repository** — `src/repositories/` (Mongo access via Typegoose models)
+- **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`); loads `reflect-metadata` for decorators.
 - **App factory**: async `createApp()` in `src/app.ts` — used by tests, local server, and the Vercel adapter.
 - **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql`.
-- **Domain (starter)**: `Room` with `id`, `name`, timestamps — queryable via `room(id)` / `rooms`, creatable via `createRoom(name)`.
-- **Database**: MongoDB via `MONGODB_URI`.
+- **Domain**:
+  - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members
+  - `Participant` — `id`, `roomId` (many participants → one room), `role` (`HOST` | `GUEST`), timestamps; each participant belongs to exactly one room
+- **Room shortId**: Ambiguity-safe alphabet (`A–Z` / `2–9`, no `0/O/1/I/L`); unique; used in `/rooms/:roomId` URLs and join form.
+- **Participant API**: `createRoom` → `{ room, participant }` (host); `joinRoom(roomId)` → guest; `leaveRoom(participantId)`; `participant(id)`
+- **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role }`. One active room per browser — create/join blocked while set; leave clears it.
+- **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
 - **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts`).
-- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room tests use `mongodb-memory-server`.
+- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant tests use `mongodb-memory-server`.
 
 ## Vercel deployment
 
@@ -124,4 +130,4 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 - Auth strategy not chosen.
 - Real-time transport (WebSocket vs polling vs SSE) not chosen.
 - Production Redis provider not chosen.
-- Queue / vote / track models not defined yet (Room is the starter entity).
+- Queue / vote / track models not defined yet.

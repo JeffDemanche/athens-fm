@@ -15,12 +15,17 @@
   "dependencies": {
     "@apollo/server": "^5.5.1",
     "@as-integrations/express5": "^1.1.2",
+    "@typegoose/typegoose": "^12.17.0",
+    "class-validator": "^0.15.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "graphql": "^16.14.2",
+    "graphql-scalars": "^1.25.0",
     "ioredis": "^5.11.1",
-    "mongoose": "^8.16.4",
+    "mongoose": "8.16.5",
+    "reflect-metadata": "^0.2.2",
+    "type-graphql": "^2.0.0-rc.4",
     "zod": "^4.0.5"
   },
   "devDependencies": {

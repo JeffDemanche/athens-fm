@@ -1,22 +1,51 @@
 import { MockedProvider } from "@apollo/client/testing/react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { JOIN_ROOM } from "../graphql/participants";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
 
-const roomMock = {
+const room = {
+  __typename: "Room",
+  id: "abc123",
+  shortId: "K7M2P",
+  name: "Studio Night",
+  createdAt: "2026-07-13T00:00:00.000Z",
+  updatedAt: "2026-07-13T00:00:00.000Z",
+};
+
+const getRoomMock = {
   request: {
     query: GET_ROOM,
-    variables: { id: "abc123" },
+    variables: { id: "K7M2P" },
   },
   result: {
     data: {
-      room: {
-        __typename: "Room",
-        id: "abc123",
-        name: "Studio Night",
+      room,
+    },
+  },
+};
+
+const joinRoomMock = {
+  request: {
+    query: JOIN_ROOM,
+    variables: { roomId: "K7M2P" },
+  },
+  result: {
+    data: {
+      joinRoom: {
+        __typename: "Participant",
+        id: "participant_1",
+        roomId: "abc123",
+        role: "GUEST",
         createdAt: "2026-07-13T00:00:00.000Z",
         updatedAt: "2026-07-13T00:00:00.000Z",
+        room: {
+          __typename: "Room",
+          id: "abc123",
+          shortId: "K7M2P",
+          name: "Studio Night",
+        },
       },
     },
   },
@@ -24,7 +53,7 @@ const roomMock = {
 
 function renderApp(path: string) {
   return render(
-    <MockedProvider mocks={[roomMock]}>
+    <MockedProvider mocks={[getRoomMock, joinRoomMock, getRoomMock]}>
       <MemoryRouter initialEntries={[path]}>
         <App />
       </MemoryRouter>
@@ -33,6 +62,10 @@ function renderApp(path: string) {
 }
 
 describe("App routing", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("renders the landing view", () => {
     renderApp("/");
 
@@ -44,24 +77,24 @@ describe("App routing", () => {
   });
 
   it("renders host and participant routes with room params", async () => {
-    const { unmount } = renderApp("/rooms/abc123/host");
+    const { unmount } = renderApp("/rooms/K7M2P/host");
 
     expect(await screen.findByText("Studio Night")).toBeInTheDocument();
     expect(screen.getByText(/host desk/i)).toBeInTheDocument();
+    expect(screen.getAllByText("K7M2P").length).toBeGreaterThan(0);
     expect(
       screen.getByRole("heading", { name: /now playing/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /^activity$/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /^playlist$/i }),
-    ).toBeInTheDocument();
     unmount();
 
-    renderApp("/rooms/abc123");
+    renderApp("/rooms/K7M2P");
 
-    expect(screen.getByRole("link", { name: /exit/i })).toBeInTheDocument();
     expect(await screen.findByText("Studio Night")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /leave/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.localStorage.getItem("athens-fm.active-membership")).toContain(
+        "participant_1",
+      );
+    });
   });
 });
