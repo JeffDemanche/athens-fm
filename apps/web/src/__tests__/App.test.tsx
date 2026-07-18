@@ -1,6 +1,7 @@
 import { MockedProvider } from "@apollo/client/testing/react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { GET_QUEUE_ITEMS, QUEUE_ITEM_ADDED } from "../graphql/queue-items";
 import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
@@ -70,6 +71,42 @@ const roomEventAddedMock = {
   },
 };
 
+const getQueueItemsMock = {
+  request: {
+    query: GET_QUEUE_ITEMS,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItems: [],
+    },
+  },
+};
+
+const queueItemAddedMock = {
+  request: {
+    query: QUEUE_ITEM_ADDED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItemAdded: {
+        __typename: "QueueItem",
+        id: "queue_1",
+        roomId: "abc123",
+        participantId: "participant_guest",
+        type: "YOUTUBE",
+        externalId: "dQw4w9WgXcQ",
+        title: "Never Gonna Give You Up",
+        thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        createdAt: "2026-07-13T00:01:00.000Z",
+      },
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
 function renderApp(path: string) {
   return render(
     <MockedProvider
@@ -77,6 +114,8 @@ function renderApp(path: string) {
         getRoomMock,
         getRoomEventsMock,
         roomEventAddedMock,
+        getQueueItemsMock,
+        queueItemAddedMock,
         getRoomMock,
       ]}
     >

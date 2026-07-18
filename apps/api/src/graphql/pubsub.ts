@@ -2,13 +2,18 @@ import { createRedisEventTarget } from "@graphql-yoga/redis-event-target";
 import { createPubSub, type PubSub as YogaPubSub } from "@graphql-yoga/subscription";
 import { Redis } from "ioredis";
 import type { PubSub } from "type-graphql";
+import type { QueueItem } from "../entities/QueueItem.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
 
 export const ROOM_EVENT_TOPIC = "ROOM_EVENT" as const;
+export const QUEUE_ITEM_TOPIC = "QUEUE_ITEM" as const;
 
 type PubSubTopics = {
   [ROOM_EVENT_TOPIC]: [roomId: string, payload: RoomEvent];
+  [QUEUE_ITEM_TOPIC]: [roomId: string, payload: QueueItem];
 };
+
+type TopicName = keyof PubSubTopics;
 
 type RoomPubSub = YogaPubSub<PubSubTopics>;
 
@@ -57,16 +62,11 @@ function ensureEngine(): RoomPubSub {
  */
 export const pubSub: PubSub = {
   publish(routingKey: string, ...args: unknown[]) {
-    ensureEngine().publish(
-      routingKey as typeof ROOM_EVENT_TOPIC,
-      ...(args as [string, RoomEvent]),
-    );
+    const topic = routingKey as TopicName;
+    ensureEngine().publish(topic, ...(args as PubSubTopics[typeof topic]));
   },
   subscribe(routingKey: string, dynamicId?: unknown) {
-    return ensureEngine().subscribe(
-      routingKey as typeof ROOM_EVENT_TOPIC,
-      dynamicId as string,
-    );
+    return ensureEngine().subscribe(routingKey as TopicName, dynamicId as string);
   },
 };
 
@@ -89,4 +89,8 @@ export async function disconnectPubSub(): Promise<void> {
 
 export function publishRoomEvent(roomId: string, event: RoomEvent): void {
   pubSub.publish(ROOM_EVENT_TOPIC, roomId, event);
+}
+
+export function publishQueueItem(roomId: string, item: QueueItem): void {
+  pubSub.publish(QUEUE_ITEM_TOPIC, roomId, item);
 }

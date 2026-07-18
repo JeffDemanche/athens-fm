@@ -4,6 +4,7 @@ import { RoomQueryState } from "@/composites/room-query-state";
 import { ActivityFeed } from "@/features/host-desk/activity-feed";
 import { PlaylistPanel } from "@/features/host-desk/playlist-panel";
 import { VideoViewer } from "@/features/host-desk/video-viewer";
+import { useRoomQueue } from "@/features/queue/use-room-queue";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { GET_ROOM, type RoomFields } from "@/graphql/rooms";
 import { Button } from "@/primitives/button";
@@ -27,19 +28,21 @@ export function HostRoomView() {
     },
   );
 
-  if (loading || error || !data?.room) {
+  const room = data?.room;
+  const { items: queueItems } = useRoomQueue(room?.id ?? "");
+  const nowPlaying = queueItems[0] ?? null;
+
+  if (loading || error || !room) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-16">
         <RoomQueryState
           loading={loading}
           errorMessage={error?.message}
-          missing={!loading && !error && !data?.room}
+          missing={!loading && !error && !room}
         />
       </main>
     );
   }
-
-  const room = data.room;
 
   return (
     <main className="flex h-dvh flex-col gap-3 overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_oklch(0.96_0.025_70)_0%,_var(--background)_50%)] p-3 sm:p-4">
@@ -89,11 +92,19 @@ export function HostRoomView() {
       </header>
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-        <VideoViewer className="min-h-[14rem]" />
+        <VideoViewer
+          className="min-h-[14rem]"
+          media={
+            nowPlaying
+              ? { type: nowPlaying.type, externalId: nowPlaying.externalId }
+              : null
+          }
+          title={nowPlaying?.title ?? null}
+        />
         <ActivityFeed roomId={room.id} className="min-h-[12rem]" />
       </div>
 
-      <PlaylistPanel />
+      <PlaylistPanel items={queueItems} />
     </main>
   );
 }

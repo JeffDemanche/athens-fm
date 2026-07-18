@@ -3,6 +3,8 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { PageShell } from "@/composites/page-shell";
 import { RoomQueryState } from "@/composites/room-query-state";
+import { AddQueueItemForm } from "@/features/queue/add-queue-item-form";
+import { ParticipantQueue } from "@/features/queue/participant-queue";
 import { RoomDetail } from "@/features/room-detail/room-detail";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { JOIN_ROOM } from "@/graphql/participants";
@@ -147,17 +149,14 @@ export function ParticipantRoomView() {
             Back to home
           </Button>
         </Stack>
-      ) : ready ? (
+      ) : ready && existing ? (
         <RoomDetail roomId={roomId} roleLabel="Listening">
-          <Stack
-            gap="md"
-            className="rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm"
-          >
-            <Text size="lg">You&apos;re in the room.</Text>
-            <Text tone="muted" size="sm">
-              Voting and queue controls will land here. This layout is tuned for
-              one-handed use on mobile web.
-            </Text>
+          <Stack gap="md">
+            <AddQueueItemForm
+              participantId={existing.participantId}
+              roomId={existing.roomId}
+            />
+            <ParticipantQueue roomId={existing.roomId} />
             <Button className="h-12 w-full text-base" disabled>
               Vote (coming soon)
             </Button>

@@ -3,6 +3,10 @@ import {
   type ParticipantService,
 } from "../services/participantService.js";
 import {
+  queueItemService,
+  type QueueItemService,
+} from "../services/queueItemService.js";
+import {
   roomEventService,
   type RoomEventService,
 } from "../services/roomEventService.js";
@@ -13,6 +17,7 @@ export type GraphQLContext = {
     room: RoomService;
     participant: ParticipantService;
     roomEvent: RoomEventService;
+    queueItem: QueueItemService;
   };
 };
 
@@ -22,6 +27,7 @@ export function createGraphQLContext(): GraphQLContext {
       room: roomService,
       participant: participantService,
       roomEvent: roomEventService,
+      queueItem: queueItemService,
     },
   };
 }
