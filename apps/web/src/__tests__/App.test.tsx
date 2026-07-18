@@ -1,7 +1,7 @@
 import { MockedProvider } from "@apollo/client/testing/react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { GET_QUEUE_ITEMS, QUEUE_ITEM_ADDED } from "../graphql/queue-items";
+import { GET_QUEUE_ITEMS, QUEUE_ITEM_ADDED, QUEUE_ITEM_POPPED } from "../graphql/queue-items";
 import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
@@ -99,6 +99,32 @@ const queueItemAddedMock = {
         externalId: "dQw4w9WgXcQ",
         title: "Never Gonna Give You Up",
         thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        finished: false,
+        embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        createdAt: "2026-07-13T00:01:00.000Z",
+      },
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const queueItemPoppedMock = {
+  request: {
+    query: QUEUE_ITEM_POPPED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItemPopped: {
+        __typename: "QueueItem",
+        id: "queue_1",
+        roomId: "abc123",
+        participantId: "participant_guest",
+        type: "YOUTUBE",
+        externalId: "dQw4w9WgXcQ",
+        title: "Never Gonna Give You Up",
+        thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        finished: true,
         embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
         createdAt: "2026-07-13T00:01:00.000Z",
       },
@@ -116,6 +142,7 @@ function renderApp(path: string) {
         roomEventAddedMock,
         getQueueItemsMock,
         queueItemAddedMock,
+        queueItemPoppedMock,
         getRoomMock,
       ]}
     >

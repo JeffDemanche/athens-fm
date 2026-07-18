@@ -9,10 +9,14 @@ type YouTubePlayerInstance = {
   destroy: () => void;
 };
 
+/** YT.PlayerState.ENDED — hardcode fallback if namespace omits constants. */
+const YT_ENDED = 0;
+
 export class YouTubeMediaPlayer implements MediaPlayer {
   readonly provider = "YOUTUBE" as const;
   private player: YouTubePlayerInstance | null = null;
   private host: HTMLDivElement | null = null;
+  private endedFired = false;
 
   async mount(
     container: HTMLElement,
@@ -24,6 +28,7 @@ export class YouTubeMediaPlayer implements MediaPlayer {
     }
 
     this.destroy();
+    this.endedFired = false;
 
     const host = document.createElement("div");
     host.className = "h-full w-full";
@@ -35,6 +40,8 @@ export class YouTubeMediaPlayer implements MediaPlayer {
       return;
     }
 
+    const endedState = YT.PlayerState?.ENDED ?? YT_ENDED;
+
     this.player = new YT.Player(host, {
       videoId: media.externalId,
       width: "100%",
@@ -43,10 +50,18 @@ export class YouTubeMediaPlayer implements MediaPlayer {
         rel: 0,
         modestbranding: 1,
         playsinline: 1,
+        autoplay: 1,
       },
       events: {
         onReady: () => {
           events?.onReady?.();
+        },
+        onStateChange: (event) => {
+          if (event.data !== endedState || this.endedFired) {
+            return;
+          }
+          this.endedFired = true;
+          events?.onEnded?.();
         },
         onError: (event) => {
           events?.onError?.(

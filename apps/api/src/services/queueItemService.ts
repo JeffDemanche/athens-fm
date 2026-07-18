@@ -2,7 +2,10 @@ import {
   QueueItemType,
   type QueueItem,
 } from "../entities/QueueItem.js";
-import { publishQueueItem } from "../graphql/pubsub.js";
+import {
+  publishQueueItemAdded,
+  publishQueueItemPopped,
+} from "../graphql/pubsub.js";
 import { resolveExternalId } from "../lib/mediaEmbed.js";
 import {
   mediaMetadataProvider,
@@ -30,7 +33,7 @@ export function createQueueItemService(
       if (!room) {
         return [];
       }
-      return repo.findByRoomId(room.id);
+      return repo.findActiveByRoomId(room.id);
     },
 
     async add(input: {
@@ -64,7 +67,30 @@ export function createQueueItemService(
         thumbnailUrl,
       });
 
-      publishQueueItem(room.id, item);
+      publishQueueItemAdded(room.id, item);
+      return item;
+    },
+
+    /**
+     * Soft-pop: mark the item finished so it leaves the active playlist without
+     * deleting the Mongo record.
+     */
+    async pop(queueItemId: string): Promise<QueueItem> {
+      const existing = await repo.findById(queueItemId);
+      if (!existing) {
+        throw new AppError("Queue item not found", 404);
+      }
+
+      if (existing.finished) {
+        return existing;
+      }
+
+      const item = await repo.markFinished(queueItemId);
+      if (!item) {
+        throw new AppError("Queue item not found", 404);
+      }
+
+      publishQueueItemPopped(String(item.roomId), item);
       return item;
     },
   };

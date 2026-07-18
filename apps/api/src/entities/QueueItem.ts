@@ -91,6 +91,14 @@ export class QueueItem {
   })
   thumbnailUrl!: string;
 
+  /**
+   * Set when the host finishes playing this item (pop). Finished items stay in
+   * Mongo but are excluded from playlist queries.
+   */
+  @Field(() => Boolean)
+  @prop({ required: true, default: false, index: true, type: Boolean })
+  finished!: boolean;
+
   /** Resolved iframe src for this item's provider. Computed at the GraphQL layer. */
   @Field(() => String)
   embedUrl!: string;

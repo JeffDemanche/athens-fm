@@ -9,6 +9,7 @@ export const QUEUE_ITEM_FIELDS = gql`
     externalId
     title
     thumbnailUrl
+    finished
     embedUrl
     createdAt
   }
@@ -32,6 +33,15 @@ export const QUEUE_ITEM_ADDED = gql`
   ${QUEUE_ITEM_FIELDS}
 `;
 
+export const QUEUE_ITEM_POPPED = gql`
+  subscription QueueItemPopped($roomId: ID!) {
+    queueItemPopped(roomId: $roomId) {
+      ...QueueItemFields
+    }
+  }
+  ${QUEUE_ITEM_FIELDS}
+`;
+
 export const ADD_QUEUE_ITEM = gql`
   mutation AddQueueItem(
     $participantId: ID!
@@ -49,6 +59,15 @@ export const ADD_QUEUE_ITEM = gql`
   ${QUEUE_ITEM_FIELDS}
 `;
 
+export const POP_QUEUE_ITEM = gql`
+  mutation PopQueueItem($id: ID!) {
+    popQueueItem(id: $id) {
+      ...QueueItemFields
+    }
+  }
+  ${QUEUE_ITEM_FIELDS}
+`;
+
 export type QueueItemType = "YOUTUBE";
 
 export type QueueItemFields = {
@@ -59,6 +78,7 @@ export type QueueItemFields = {
   externalId: string;
   title: string;
   thumbnailUrl: string;
+  finished: boolean;
   embedUrl: string;
   createdAt: string;
 };

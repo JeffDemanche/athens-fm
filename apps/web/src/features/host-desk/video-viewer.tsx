@@ -8,14 +8,18 @@ type VideoViewerProps = {
   className?: string;
   media?: EmbeddableMedia | null;
   title?: string | null;
+  onEnded?: () => void;
 };
 
 export function VideoViewer({
   className,
   media = null,
   title = null,
+  onEnded,
 }: VideoViewerProps) {
-  const containerRef = useMediaPlayer(media);
+  const containerRef = useMediaPlayer(media, {
+    events: { onEnded },
+  });
 
   return (
     <DeskPanel

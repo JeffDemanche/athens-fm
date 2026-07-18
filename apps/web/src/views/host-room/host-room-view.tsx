@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@apollo/client/react";
 import { RoomQueryState } from "@/composites/room-query-state";
@@ -29,8 +30,22 @@ export function HostRoomView() {
   );
 
   const room = data?.room;
-  const { items: queueItems } = useRoomQueue(room?.id ?? "");
+  const { items: queueItems, popQueueItem } = useRoomQueue(room?.id ?? "");
   const nowPlaying = queueItems[0] ?? null;
+  const poppingIdRef = useRef<string | null>(null);
+
+  const handleTrackEnded = useCallback(() => {
+    const current = nowPlaying;
+    if (!current || poppingIdRef.current === current.id) {
+      return;
+    }
+    poppingIdRef.current = current.id;
+    void popQueueItem(current.id).finally(() => {
+      if (poppingIdRef.current === current.id) {
+        poppingIdRef.current = null;
+      }
+    });
+  }, [nowPlaying, popQueueItem]);
 
   if (loading || error || !room) {
     return (
@@ -100,6 +115,7 @@ export function HostRoomView() {
               : null
           }
           title={nowPlaying?.title ?? null}
+          onEnded={handleTrackEnded}
         />
         <ActivityFeed roomId={room.id} className="min-h-[12rem]" />
       </div>

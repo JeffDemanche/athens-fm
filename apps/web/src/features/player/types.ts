@@ -9,6 +9,7 @@ export type MediaPlayerStatus = "idle" | "loading" | "ready" | "error";
 
 export type MediaPlayerEvents = {
   onReady?: () => void;
+  onEnded?: () => void;
   onError?: (error: Error) => void;
 };
 

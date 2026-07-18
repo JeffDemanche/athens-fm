@@ -205,6 +205,95 @@ describe("GraphQL QueueItem API", () => {
     ]);
   });
 
+  it("pops a finished item without deleting it and hides it from the playlist", async () => {
+    const created = await createRoom("Encore");
+    const guestId = await joinGuest(created.room.shortId, "Sam");
+
+    const addResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+              finished
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "dQw4w9WgXcQ",
+        },
+      });
+    expect(addResponse.body.errors).toBeUndefined();
+    const itemId = addResponse.body.data.addQueueItem.id as string;
+    expect(addResponse.body.data.addQueueItem.finished).toBe(false);
+
+    const secondAdd = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+              externalId
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "jNQXAC9IVRw",
+        },
+      });
+    expect(secondAdd.body.errors).toBeUndefined();
+
+    const popResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Pop($id: ID!) {
+            popQueueItem(id: $id) {
+              id
+              finished
+              externalId
+            }
+          }
+        `,
+        variables: { id: itemId },
+      });
+    expect(popResponse.body.errors).toBeUndefined();
+    expect(popResponse.body.data.popQueueItem).toMatchObject({
+      id: itemId,
+      finished: true,
+      externalId: "dQw4w9WgXcQ",
+    });
+
+    const listResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          query Queue($roomId: ID!) {
+            queueItems(roomId: $roomId) {
+              id
+              externalId
+              finished
+            }
+          }
+        `,
+        variables: { roomId: created.room.id },
+      });
+    expect(listResponse.body.errors).toBeUndefined();
+    expect(listResponse.body.data.queueItems).toEqual([
+      {
+        id: secondAdd.body.data.addQueueItem.id,
+        externalId: "jNQXAC9IVRw",
+        finished: false,
+      },
+    ]);
+  });
+
   it("rejects invalid youtube media refs", async () => {
     const created = await createRoom("Noisy");
     const guestId = await joinGuest(created.room.shortId, "Lee");

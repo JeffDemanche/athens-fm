@@ -67,7 +67,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Panel chrome via `composites/desk-panel`
   - **Activity feed** — chronological `RoomEvent` stream (join/leave); seeded via `roomEvents` query + live via `roomEventAdded` subscription (not a participant list)
   - **Queue** — seeded via `queueItems` query + live via `queueItemAdded` subscription (`features/queue/use-room-queue`)
-  - **Player** — provider-agnostic `MediaPlayer` (`features/player/`); `YouTubeMediaPlayer` wraps the YouTube IFrame Player API (no API key required); factory `createMediaPlayer(type)`. Playlist tiles show persisted `title` + `thumbnailUrl` from the API.
+  - **Player** — provider-agnostic `MediaPlayer` (`features/player/`); `YouTubeMediaPlayer` wraps the YouTube IFrame Player API (no API key required); factory `createMediaPlayer(type)`. Playlist tiles show persisted `title` + `thumbnailUrl` from the API. Host desk listens for embed `ENDED`, then `popQueueItem` (soft-finish); next active item becomes now-playing automatically.
   - **Participant room** — YouTube URL/id submit form (`addQueueItem`) + live horizontal queue list (title + thumbnail)
 - **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
   - HTTP for queries/mutations; WebSocket (`graphql-ws`) for subscriptions on the same path
@@ -91,14 +91,14 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically; `queueItems` lists `QueueItem`s in submission order
   - `Participant` — `id`, `roomId`, `role` (`HOST` | `GUEST`), optional `name`/`nameKey` for guests only (unique per room, case-insensitive); hosts are unnamed desk operators
   - `RoomEvent` — `id`, `roomId`, `participantId`, optional `participantName` + `participantRole` (denormalized), `type` (`JOINED` | `LEFT`), timestamps; persisted on join/leave and published over Redis pub/sub for live subscribers
-  - `QueueItem` — `id`, `roomId`, `participantId` (submitter), `type` (`YOUTUBE` only for now), `externalId`, `title`, `thumbnailUrl` (fetched once via YouTube Data API at submit), computed `embedUrl`, timestamps; one room → many queue items
+  - `QueueItem` — `id`, `roomId`, `participantId` (submitter), `type` (`YOUTUBE` only for now), `externalId`, `title`, `thumbnailUrl` (fetched once via YouTube Data API at submit), `finished` (soft-pop flag; finished items stay in Mongo but are omitted from playlist queries), computed `embedUrl`, timestamps; one room → many queue items
   - Embed resolution — `src/lib/mediaEmbed.ts` parses provider media refs (YouTube URL/id) and builds privacy-enhanced embed URLs
   - Media metadata — `src/lib/mediaMetadata.ts` (`MediaMetadataProvider`); YouTube implementation calls Data API `videos.list` (`part=snippet`) using server env `YOUTUBE_API_KEY`
 - **Room shortId**: Ambiguity-safe alphabet (`A–Z` / `2–9`, no `0/O/1/I/L`); unique; used in `/rooms/:roomId` URLs and join form.
 - **Participant API**: `createRoom(name)` → `{ room, participant }` (unnamed host); `joinRoom(roomId, name)` → named guest; `leaveRoom(participantId)`; `participant(id)`
 - **RoomEvent API**: `roomEvents(roomId)`; `Room.events`; subscription `roomEventAdded(roomId)` (accepts shortId or ObjectId; fans out by Mongo room id)
-- **QueueItem API**: `queueItems(roomId)`; `Room.queueItems`; `addQueueItem(participantId, type, mediaRef)`; subscription `queueItemAdded(roomId)` (accepts shortId or ObjectId; fans out by Mongo room id). Voting not implemented yet.
-- **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Topics: `ROOM_EVENT`, `QUEUE_ITEM`. Transport: `graphql-ws` over WebSockets.
+- **QueueItem API**: `queueItems(roomId)` / `Room.queueItems` (active/`finished: false` only, submission order); `addQueueItem(participantId, type, mediaRef)`; `popQueueItem(id)` marks `finished: true` without deleting; subscriptions `queueItemAdded(roomId)`, `queueItemPopped(roomId)`. Voting not implemented yet.
+- **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Topics: `ROOM_EVENT`, `QUEUE_ITEM_ADDED`, `QUEUE_ITEM_POPPED`. Transport: `graphql-ws` over WebSockets.
 - **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role, participantName? }`. One active room per browser — create/join blocked while set; leave clears it. Hosts stay on `/rooms/:id/host` (no participant view).
 - **Display names**: Required for guests only; rejected with a user-facing error when already taken in that room (case-insensitive).
 - **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
@@ -145,5 +145,5 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 - Auth strategy not chosen.
 - Production Redis provider not chosen (Upstash vs other); local Docker Redis is the default broker for subscriptions.
 - Hosting for production WebSocket subscriptions (long-lived Node vs alternative realtime) not chosen — Vercel serverless entry is HTTP-only today.
-- Voting / queue reordering / advance-to-next-track not implemented yet.
+- Voting / queue reordering not implemented yet (advance-on-end soft-pops via `finished`).
 - Additional embed providers beyond YouTube not implemented (player/embed interfaces are ready for adapters).

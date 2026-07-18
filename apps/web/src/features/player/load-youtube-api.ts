@@ -11,11 +11,19 @@ type YouTubeNamespace = {
       height?: string | number;
       playerVars?: Record<string, string | number>;
       events?: {
-        onReady?: () => void;
+        onReady?: (event: { target: YouTubePlayerInstance }) => void;
+        onStateChange?: (event: { data: number }) => void;
         onError?: (event: { data: number }) => void;
       };
     },
   ) => YouTubePlayerInstance;
+  PlayerState: {
+    ENDED: number;
+    PLAYING: number;
+    PAUSED: number;
+    BUFFERING: number;
+    CUED: number;
+  };
 };
 
 declare global {

@@ -14,6 +14,7 @@ function toQueueItem(doc: {
   externalId: string;
   title: string;
   thumbnailUrl: string;
+  finished?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }): QueueItem {
@@ -25,6 +26,7 @@ function toQueueItem(doc: {
     externalId: doc.externalId,
     title: doc.title,
     thumbnailUrl: doc.thumbnailUrl,
+    finished: doc.finished ?? false,
     embedUrl: buildEmbedUrl(doc.type, doc.externalId),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -32,15 +34,27 @@ function toQueueItem(doc: {
 }
 
 export const queueItemRepository = {
-  async findByRoomId(roomId: string): Promise<QueueItem[]> {
+  async findActiveByRoomId(roomId: string): Promise<QueueItem[]> {
     if (!mongoose.isValidObjectId(roomId)) {
       return [];
     }
 
-    const docs = await QueueItemModel.find({ roomId })
+    const docs = await QueueItemModel.find({
+      roomId,
+      finished: { $ne: true },
+    })
       .sort({ createdAt: 1 })
       .exec();
     return docs.map((doc) => toQueueItem(doc));
+  },
+
+  async findById(id: string): Promise<QueueItem | null> {
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    const doc = await QueueItemModel.findById(id).exec();
+    return doc ? toQueueItem(doc) : null;
   },
 
   async create(input: {
@@ -65,8 +79,22 @@ export const queueItemRepository = {
       externalId: input.externalId,
       title: input.title,
       thumbnailUrl: input.thumbnailUrl,
+      finished: false,
     });
     return toQueueItem(doc);
+  },
+
+  async markFinished(id: string): Promise<QueueItem | null> {
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    const doc = await QueueItemModel.findByIdAndUpdate(
+      id,
+      { $set: { finished: true } },
+      { new: true },
+    ).exec();
+    return doc ? toQueueItem(doc) : null;
   },
 };
 
