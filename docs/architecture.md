@@ -112,9 +112,9 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 
 - **Config**: Root `vercel.json`
   - Fluid compute enabled (`fluid: true`); `api/index.ts` `maxDuration` 300s
+  - **Vercel project Root Directory must be monorepo root (`.`)**, not `apps/api` — otherwise installs filter to the API workspace and `outputDirectory` resolves wrong
   - Install: `npm install --include=dev --workspaces -w @athens-fm/web -w @athens-fm/api` (+ root `.npmrc` `include=dev`)
-    - Vercel detects this repo as Express (`api/`) and otherwise runs an API-only filtered workspace install (~591 packages) that skips `@athens-fm/web` (no Vite) even when Vite is in `dependencies`
-    - Explicit `-w` / `--workspaces` forces both app packages to install
+    - Explicit `-w` / `--workspaces` forces both app packages to install (Express detection previously filtered to `@athens-fm/api` only)
   - Web build toolchain (`vite`, `typescript`, Tailwind plugins, React types) lives in `@athens-fm/web` `dependencies`; Jest stays in `devDependencies` and is excluded from production `tsc -b`
   - Builds `@athens-fm/web` → `apps/web/dist`
   - Rewrites `/api/*` → `/api` serverless function
