@@ -53,6 +53,11 @@ export function initPubSub(redisUrl?: string): RoomPubSub {
   return engine;
 }
 
+/** Redis clients used by GraphQL pub/sub (for Fluid compute pool attachment). */
+export function getPubSubRedisClients(): Redis[] {
+  return [publisher, subscriber].filter(Boolean) as Redis[];
+}
+
 function ensureEngine(): RoomPubSub {
   if (!engine) {
     engine = createMemoryEngine();

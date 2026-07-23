@@ -19,7 +19,7 @@ Last updated: 2026-07-22
 |------|------|
 | `apps/web` | Vite + React + Tailwind CSS + shadcn/ui frontend (`@athens-fm/web`) |
 | `apps/api` | Express + Apollo GraphQL + Mongoose + Redis API (`@athens-fm/api`) |
-| `api/` | Vercel serverless entry that re-exports the Express app |
+| `api/` | Vercel serverless entry: exports `http.Server` (Express + graphql-ws) from `createHttpServer()` |
 | `docker-compose.yml` | Local full stack: mongo, redis, api (tsx watch), web (Vite HMR) |
 | `Dockerfile.dev` | Shared Node 22 image used by api/web compose services |
 | `docs/` | Living architecture / concept docs (this file and peers) |
@@ -71,6 +71,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - **Participant room** — YouTube URL/id submit form (`addQueueItem`) + live horizontal queue list of all upcoming room tracks with per-item up/down vote toggles (`voteOnQueueItem`)
 - **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
   - HTTP for queries/mutations; WebSocket (`graphql-ws`) for subscriptions on the same path
+  - Client retries WS reconnects indefinitely with exponential backoff (Vercel Functions close sockets at `maxDuration`)
 - **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL HTTP + WS (`ws: true` in Vite).
 - **Tests**: Jest + Testing Library (`jest.config.ts`, `jest.setup.ts`).
 - **UI convention**: Prefer shadcn components; add with `npx shadcn@latest add <name>` from `apps/web`.
@@ -85,7 +86,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - **Service** — `src/services/` (business rules; e.g. `roomService`, `participantService`, `roomEventService`, `queueItemService`, `voteService`)
   - **Repository** — `src/repositories/` (Mongo access via Typegoose models)
 - **Entry**: `src/index.ts` listens on `0.0.0.0:$PORT` (default `3001`) via `http.Server`; loads `reflect-metadata` for decorators; attaches WebSocket subscriptions on `/api/graphql`.
-- **App factory**: async `createApp()` in `src/app.ts` — HTTP GraphQL only (used by tests, local server, and the Vercel adapter). Subscriptions require the long-lived Node entry (`src/index.ts`).
+- **App factory**: async `createApp()` in `src/app.ts` — HTTP GraphQL only. Shared bootstrap `createHttpServer()` in `src/createHttpServer.ts` wires Mongo/Redis/pubsub + Express + `graphql-ws` (used by Docker entry and the Vercel adapter).
 - **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql` + `WS /api/graphql` (subscriptions).
 - **Domain**:
   - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically; `queueItems` lists active `QueueItem`s by vote score
@@ -110,19 +111,22 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 ## Vercel deployment
 
 - **Config**: Root `vercel.json`
+  - Fluid compute enabled (`fluid: true`); `api/index.ts` `maxDuration` 300s
   - Builds `@athens-fm/web` → `apps/web/dist`
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
-- **Serverless entry**: `api/index.ts` lazily creates the Express/Apollo app and connects MongoDB when `MONGODB_URI` is set.
-  - **Realtime caveat**: GraphQL subscriptions (WebSocket + Redis pub/sub) need a long-lived Node process (Docker/`src/index.ts`). The Vercel serverless adapter serves HTTP GraphQL only — historical `roomEvents` / `queueItems` queries still work; live pushes do not on that path.
+- **Serverless entry**: `api/index.ts` exports an `http.Server` from `createHttpServer()` (Express + Apollo HTTP + `graphql-ws` WebSockets). Matches [Vercel Functions WebSockets](https://vercel.com/docs/functions/websockets) (native Node `ws`, not `experimental_upgradeWebSocket`).
+  - Sockets are pinned to one Function instance; `REDIS_URL` + Yoga Redis event target fans out pub/sub across instances
+  - Connections close when the Function hits `maxDuration`; the web client reconnects via `graphql-ws` retry backoff
+  - `attachDatabasePool` from `@vercel/functions` is applied to Mongo + Redis clients for Fluid idle pool release
 - **Env vars** (set in Vercel project + local `.env`):
   - `MONGODB_URI` — Atlas (or other) connection string
-  - `REDIS_URL` — managed Redis (e.g. Upstash) for GraphQL pub/sub across API instances when using a long-lived server
+  - `REDIS_URL` — **required for multi-listener production** (e.g. Upstash / Vercel Marketplace Redis); without it, pub/sub is in-memory per instance only
   - `CORS_ORIGIN` — production web origin(s), comma-separated if multiple
   - `PORT` — local/docker only
   - `YOUTUBE_API_KEY` — YouTube Data API v3 key (server-only; used when adding queue items to resolve title/thumbnail)
   - `VITE_GRAPHQL_URL` — optional; defaults to `/api/graphql`
-- **Local Vercel parity**: `vercel dev` from repo root after `vercel link`.
+- **Local Vercel parity**: `vercel dev` from repo root after `vercel link` (needed to exercise the WS export path).
 - **Recommended**: One Vercel project rooted at the monorepo.
 
 ## Testing
@@ -145,6 +149,5 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 ## Open / undecided
 
 - Auth strategy not chosen.
-- Production Redis provider not chosen (Upstash vs other); local Docker Redis is the default broker for subscriptions.
-- Hosting for production WebSocket subscriptions (long-lived Node vs alternative realtime) not chosen — Vercel serverless entry is HTTP-only today.
+- Production Redis provider not chosen (Upstash vs other); local Docker Redis is the default broker for subscriptions. Vercel multi-instance rooms require a shared `REDIS_URL`.
 - Additional embed providers beyond YouTube not implemented (player/embed interfaces are ready for adapters).

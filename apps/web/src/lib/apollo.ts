@@ -22,7 +22,13 @@ const wsLink =
         createClient({
           url: graphqlWsUrl(),
           lazy: true,
-          retryAttempts: 5,
+          // Vercel Functions close WebSockets at maxDuration; keep retrying with backoff.
+          retryAttempts: Number.POSITIVE_INFINITY,
+          shouldRetry: () => true,
+          retryWait: async (retries) => {
+            const delayMs = Math.min(1000 * 2 ** retries, 30_000);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          },
         }),
       )
     : null;
