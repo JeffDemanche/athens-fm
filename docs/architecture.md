@@ -112,6 +112,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 
 - **Config**: Root `vercel.json`
   - Fluid compute enabled (`fluid: true`); `api/index.ts` `maxDuration` 300s
+  - Install: `npm install --production=false` — Vite/TypeScript/Tailwind live in `devDependencies`; Vercel often has `NODE_ENV=production` at install time, which would otherwise skip them
   - Builds `@athens-fm/web` → `apps/web/dist`
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
