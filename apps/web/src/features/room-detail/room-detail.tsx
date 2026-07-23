@@ -17,7 +17,7 @@ type GetRoomVars = {
 type RoomDetailProps = {
   roomId: string;
   roleLabel: string;
-  children?: ReactNode;
+  children?: ReactNode | ((room: RoomFields) => ReactNode);
 };
 
 export function RoomDetail({ roomId, roleLabel, children }: RoomDetailProps) {
@@ -38,12 +38,14 @@ export function RoomDetail({ roomId, roleLabel, children }: RoomDetailProps) {
     );
   }
 
+  const room = data.room;
+
   return (
     <Stack gap="lg">
-      <RoomHeader room={data.room} roleLabel={roleLabel} />
-      {children}
+      <RoomHeader room={room} roleLabel={roleLabel} />
+      {typeof children === "function" ? children(room) : children}
       <Text size="sm" tone="muted">
-        Updated {new Date(data.room.updatedAt).toLocaleString()}
+        Updated {new Date(room.updatedAt).toLocaleString()}
       </Text>
     </Stack>
   );

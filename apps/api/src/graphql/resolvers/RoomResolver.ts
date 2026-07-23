@@ -1,6 +1,7 @@
 import { Arg, Ctx, FieldResolver, ID, Mutation, Query, Resolver, Root } from "type-graphql";
 import { CreateRoomPayload } from "../../entities/CreateRoomPayload.js";
 import { Participant } from "../../entities/Participant.js";
+import { QueueItem } from "../../entities/QueueItem.js";
 import { Room } from "../../entities/Room.js";
 import { RoomEvent } from "../../entities/RoomEvent.js";
 import type { GraphQLContext } from "../context.js";
@@ -44,5 +45,13 @@ export class RoomResolver {
     @Ctx() context: GraphQLContext,
   ): Promise<RoomEvent[]> {
     return context.services.roomEvent.listByRoom(room.id);
+  }
+
+  @FieldResolver(() => [QueueItem])
+  async queueItems(
+    @Root() room: Room,
+    @Ctx() context: GraphQLContext,
+  ): Promise<QueueItem[]> {
+    return context.services.queueItem.listByRoom(room.id);
   }
 }

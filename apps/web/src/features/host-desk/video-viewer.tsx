@@ -1,18 +1,26 @@
 import { DeskPanel } from "@/composites/desk-panel";
+import { useMediaPlayer } from "@/features/player/use-media-player";
+import type { EmbeddableMedia } from "@/features/player/types";
 import { Text } from "@/primitives/text";
 import { cn } from "@/lib/utils";
 
 type VideoViewerProps = {
   className?: string;
-  videoId?: string | null;
+  media?: EmbeddableMedia | null;
   title?: string | null;
+  onEnded?: () => void;
 };
 
 export function VideoViewer({
   className,
-  videoId = null,
+  media = null,
   title = null,
+  onEnded,
 }: VideoViewerProps) {
+  const containerRef = useMediaPlayer(media, {
+    events: { onEnded },
+  });
+
   return (
     <DeskPanel
       title="Now playing"
@@ -20,13 +28,10 @@ export function VideoViewer({
       className={cn(className)}
     >
       <div className="flex h-full min-h-0 items-stretch p-3">
-        {videoId ? (
-          <iframe
-            title={title ?? "Now playing"}
-            src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            className="h-full w-full rounded-md bg-foreground/90"
+        {media ? (
+          <div
+            ref={containerRef}
+            className="h-full min-h-[12rem] w-full overflow-hidden rounded-md bg-foreground/90 [&_iframe]:h-full [&_iframe]:w-full"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-md bg-[radial-gradient(ellipse_at_center,_oklch(0.32_0.02_55)_0%,_oklch(0.18_0.02_55)_70%)] text-center">

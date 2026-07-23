@@ -1,6 +1,13 @@
 import { MockedProvider } from "@apollo/client/testing/react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import {
+  GET_QUEUE_ITEMS,
+  POP_QUEUE_ITEM,
+  QUEUE_ITEM_ADDED,
+  QUEUE_ITEM_POPPED,
+  QUEUE_ITEM_UPDATED,
+} from "../graphql/queue-items";
 import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
 import App from "../App";
@@ -12,6 +19,21 @@ const room = {
   name: "Studio Night",
   createdAt: "2026-07-13T00:00:00.000Z",
   updatedAt: "2026-07-13T00:00:00.000Z",
+};
+
+const queueItemFields = {
+  __typename: "QueueItem",
+  id: "queue_1",
+  roomId: "abc123",
+  participantId: "participant_guest",
+  type: "YOUTUBE",
+  externalId: "dQw4w9WgXcQ",
+  title: "Never Gonna Give You Up",
+  thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+  finished: false,
+  score: 0,
+  embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+  createdAt: "2026-07-13T00:01:00.000Z",
 };
 
 const getRoomMock = {
@@ -70,6 +92,77 @@ const roomEventAddedMock = {
   },
 };
 
+const getQueueItemsMock = {
+  request: {
+    query: GET_QUEUE_ITEMS,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItems: [],
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const queueItemAddedMock = {
+  request: {
+    query: QUEUE_ITEM_ADDED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItemAdded: queueItemFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const queueItemPoppedMock = {
+  request: {
+    query: QUEUE_ITEM_POPPED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItemPopped: {
+        ...queueItemFields,
+        finished: true,
+      },
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const queueItemUpdatedMock = {
+  request: {
+    query: QUEUE_ITEM_UPDATED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      queueItemUpdated: queueItemFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const popQueueItemMock = {
+  request: {
+    query: POP_QUEUE_ITEM,
+    variables: { id: "queue_1" },
+  },
+  result: {
+    data: {
+      popQueueItem: {
+        ...queueItemFields,
+        finished: true,
+      },
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
 function renderApp(path: string) {
   return render(
     <MockedProvider
@@ -77,6 +170,11 @@ function renderApp(path: string) {
         getRoomMock,
         getRoomEventsMock,
         roomEventAddedMock,
+        getQueueItemsMock,
+        queueItemAddedMock,
+        queueItemPoppedMock,
+        queueItemUpdatedMock,
+        popQueueItemMock,
         getRoomMock,
       ]}
     >

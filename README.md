@@ -62,6 +62,8 @@ npm run build
 
 ## Vercel
 
-1. Import this repo in Vercel (root directory = monorepo root).
-2. Set `MONGODB_URI`, `REDIS_URL` (if used), and `CORS_ORIGIN` in the project env.
-3. Deploy — `vercel.json` builds the Vite app and routes `/api/*` to the serverless Express entry in `api/`.
+1. Import this repo in Vercel (root directory = monorepo root). Fluid compute is enabled in `vercel.json`.
+2. Set `MONGODB_URI`, `REDIS_URL` (required for multi-listener GraphQL subscriptions), `CORS_ORIGIN`, and `YOUTUBE_API_KEY` in the project env.
+3. Deploy — `vercel.json` builds the Vite app and routes `/api/*` to the serverless `http.Server` in `api/` (Express + `graphql-ws` WebSockets).
+
+Local WS parity: `vercel dev` after `vercel link`.

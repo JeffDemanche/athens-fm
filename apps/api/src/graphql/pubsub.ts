@@ -2,13 +2,22 @@ import { createRedisEventTarget } from "@graphql-yoga/redis-event-target";
 import { createPubSub, type PubSub as YogaPubSub } from "@graphql-yoga/subscription";
 import { Redis } from "ioredis";
 import type { PubSub } from "type-graphql";
+import type { QueueItem } from "../entities/QueueItem.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
 
 export const ROOM_EVENT_TOPIC = "ROOM_EVENT" as const;
+export const QUEUE_ITEM_ADDED_TOPIC = "QUEUE_ITEM_ADDED" as const;
+export const QUEUE_ITEM_POPPED_TOPIC = "QUEUE_ITEM_POPPED" as const;
+export const QUEUE_ITEM_UPDATED_TOPIC = "QUEUE_ITEM_UPDATED" as const;
 
 type PubSubTopics = {
   [ROOM_EVENT_TOPIC]: [roomId: string, payload: RoomEvent];
+  [QUEUE_ITEM_ADDED_TOPIC]: [roomId: string, payload: QueueItem];
+  [QUEUE_ITEM_POPPED_TOPIC]: [roomId: string, payload: QueueItem];
+  [QUEUE_ITEM_UPDATED_TOPIC]: [roomId: string, payload: QueueItem];
 };
+
+type TopicName = keyof PubSubTopics;
 
 type RoomPubSub = YogaPubSub<PubSubTopics>;
 
@@ -44,6 +53,11 @@ export function initPubSub(redisUrl?: string): RoomPubSub {
   return engine;
 }
 
+/** Redis clients used by GraphQL pub/sub (for Fluid compute pool attachment). */
+export function getPubSubRedisClients(): Redis[] {
+  return [publisher, subscriber].filter(Boolean) as Redis[];
+}
+
 function ensureEngine(): RoomPubSub {
   if (!engine) {
     engine = createMemoryEngine();
@@ -57,16 +71,11 @@ function ensureEngine(): RoomPubSub {
  */
 export const pubSub: PubSub = {
   publish(routingKey: string, ...args: unknown[]) {
-    ensureEngine().publish(
-      routingKey as typeof ROOM_EVENT_TOPIC,
-      ...(args as [string, RoomEvent]),
-    );
+    const topic = routingKey as TopicName;
+    ensureEngine().publish(topic, ...(args as PubSubTopics[typeof topic]));
   },
   subscribe(routingKey: string, dynamicId?: unknown) {
-    return ensureEngine().subscribe(
-      routingKey as typeof ROOM_EVENT_TOPIC,
-      dynamicId as string,
-    );
+    return ensureEngine().subscribe(routingKey as TopicName, dynamicId as string);
   },
 };
 
@@ -89,4 +98,16 @@ export async function disconnectPubSub(): Promise<void> {
 
 export function publishRoomEvent(roomId: string, event: RoomEvent): void {
   pubSub.publish(ROOM_EVENT_TOPIC, roomId, event);
+}
+
+export function publishQueueItemAdded(roomId: string, item: QueueItem): void {
+  pubSub.publish(QUEUE_ITEM_ADDED_TOPIC, roomId, item);
+}
+
+export function publishQueueItemPopped(roomId: string, item: QueueItem): void {
+  pubSub.publish(QUEUE_ITEM_POPPED_TOPIC, roomId, item);
+}
+
+export function publishQueueItemUpdated(roomId: string, item: QueueItem): void {
+  pubSub.publish(QUEUE_ITEM_UPDATED_TOPIC, roomId, item);
 }
