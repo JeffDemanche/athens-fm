@@ -23,7 +23,7 @@ export function PlaylistPanel({ className, items = [] }: PlaylistPanelProps) {
   return (
     <DeskPanel
       title="Playlist"
-      description="Queue in submission order"
+      description="Up next — sorted by votes, oldest wins ties"
       className={cn("shrink-0", className)}
     >
       {items.length === 0 ? (
@@ -56,6 +56,12 @@ export function PlaylistPanel({ className, items = [] }: PlaylistPanelProps) {
                 >
                   #{index + 1}
                 </Text>
+                <Text
+                  size="sm"
+                  className="absolute right-1.5 bottom-1.5 rounded bg-background/85 px-1.5 py-0.5 font-mono text-xs"
+                >
+                  {item.score > 0 ? `+${item.score}` : item.score}
+                </Text>
               </div>
               <div className="min-w-0">
                 <Text as="p" size="sm" className="line-clamp-2 font-medium">
@@ -63,7 +69,7 @@ export function PlaylistPanel({ className, items = [] }: PlaylistPanelProps) {
                 </Text>
                 <Text as="p" size="sm" tone="muted" className="truncate text-xs">
                   {providerLabel(item.type)}
-                  {index === 0 ? " · Now playing" : ""}
+                  {index === 0 ? " · Up next" : ""}
                 </Text>
               </div>
             </li>

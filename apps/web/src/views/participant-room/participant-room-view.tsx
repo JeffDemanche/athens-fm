@@ -151,16 +151,18 @@ export function ParticipantRoomView() {
         </Stack>
       ) : ready && existing ? (
         <RoomDetail roomId={roomId} roleLabel="Listening">
-          <Stack gap="md">
-            <AddQueueItemForm
-              participantId={existing.participantId}
-              roomId={existing.roomId}
-            />
-            <ParticipantQueue roomId={existing.roomId} />
-            <Button className="h-12 w-full text-base" disabled>
-              Vote (coming soon)
-            </Button>
-          </Stack>
+          {(room) => (
+            <Stack gap="md">
+              <AddQueueItemForm
+                participantId={existing.participantId}
+                roomId={room.id}
+              />
+              <ParticipantQueue
+                roomId={room.id}
+                participantId={existing.participantId}
+              />
+            </Stack>
+          )}
         </RoomDetail>
       ) : loading || error || !data?.room ? (
         <RoomQueryState

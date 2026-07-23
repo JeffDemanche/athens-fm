@@ -8,11 +8,13 @@ import type { RoomEvent } from "../entities/RoomEvent.js";
 export const ROOM_EVENT_TOPIC = "ROOM_EVENT" as const;
 export const QUEUE_ITEM_ADDED_TOPIC = "QUEUE_ITEM_ADDED" as const;
 export const QUEUE_ITEM_POPPED_TOPIC = "QUEUE_ITEM_POPPED" as const;
+export const QUEUE_ITEM_UPDATED_TOPIC = "QUEUE_ITEM_UPDATED" as const;
 
 type PubSubTopics = {
   [ROOM_EVENT_TOPIC]: [roomId: string, payload: RoomEvent];
   [QUEUE_ITEM_ADDED_TOPIC]: [roomId: string, payload: QueueItem];
   [QUEUE_ITEM_POPPED_TOPIC]: [roomId: string, payload: QueueItem];
+  [QUEUE_ITEM_UPDATED_TOPIC]: [roomId: string, payload: QueueItem];
 };
 
 type TopicName = keyof PubSubTopics;
@@ -99,4 +101,8 @@ export function publishQueueItemAdded(roomId: string, item: QueueItem): void {
 
 export function publishQueueItemPopped(roomId: string, item: QueueItem): void {
   pubSub.publish(QUEUE_ITEM_POPPED_TOPIC, roomId, item);
+}
+
+export function publishQueueItemUpdated(roomId: string, item: QueueItem): void {
+  pubSub.publish(QUEUE_ITEM_UPDATED_TOPIC, roomId, item);
 }

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import {
   ADD_QUEUE_ITEM,
   GET_QUEUE_ITEMS,
+  sortQueueItemsByVotes,
   type QueueItemFields,
 } from "@/graphql/queue-items";
 import { Button } from "@/primitives/button";
@@ -69,7 +70,9 @@ export function AddQueueItemForm({
               if (current.some((entry) => entry.id === item.id)) {
                 return existing ?? { queueItems: current };
               }
-              return { queueItems: [...current, item] };
+              return {
+                queueItems: sortQueueItemsByVotes([...current, item]),
+              };
             },
           );
         },
@@ -90,8 +93,7 @@ export function AddQueueItemForm({
       <div>
         <Text size="lg">Add to the queue</Text>
         <Text tone="muted" size="sm" className="mt-1">
-          Paste a YouTube link or video id. It shows up on the host desk in
-          submission order.
+          Paste a YouTube link or video id. Higher-voted tracks rise to the top.
         </Text>
       </div>
       <form onSubmit={onSubmit}>

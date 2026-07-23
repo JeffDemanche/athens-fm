@@ -15,6 +15,7 @@ function toQueueItem(doc: {
   title: string;
   thumbnailUrl: string;
   finished?: boolean;
+  score?: number;
   createdAt: Date;
   updatedAt: Date;
 }): QueueItem {
@@ -27,6 +28,7 @@ function toQueueItem(doc: {
     title: doc.title,
     thumbnailUrl: doc.thumbnailUrl,
     finished: doc.finished ?? false,
+    score: doc.score ?? 0,
     embedUrl: buildEmbedUrl(doc.type, doc.externalId),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -43,7 +45,7 @@ export const queueItemRepository = {
       roomId,
       finished: { $ne: true },
     })
-      .sort({ createdAt: 1 })
+      .sort({ score: -1, createdAt: 1 })
       .exec();
     return docs.map((doc) => toQueueItem(doc));
   },
@@ -80,6 +82,7 @@ export const queueItemRepository = {
       title: input.title,
       thumbnailUrl: input.thumbnailUrl,
       finished: false,
+      score: 0,
     });
     return toQueueItem(doc);
   },
@@ -92,6 +95,23 @@ export const queueItemRepository = {
     const doc = await QueueItemModel.findByIdAndUpdate(
       id,
       { $set: { finished: true } },
+      { new: true },
+    ).exec();
+    return doc ? toQueueItem(doc) : null;
+  },
+
+  async adjustScore(id: string, delta: number): Promise<QueueItem | null> {
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    if (delta === 0) {
+      return this.findById(id);
+    }
+
+    const doc = await QueueItemModel.findByIdAndUpdate(
+      id,
+      { $inc: { score: delta } },
       { new: true },
     ).exec();
     return doc ? toQueueItem(doc) : null;

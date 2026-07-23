@@ -11,6 +11,7 @@ import {
   Field,
   GraphQLISODateTime,
   ID,
+  Int,
   ObjectType,
   registerEnumType,
 } from "type-graphql";
@@ -98,6 +99,13 @@ export class QueueItem {
   @Field(() => Boolean)
   @prop({ required: true, default: false, index: true, type: Boolean })
   finished!: boolean;
+
+  /**
+   * Net vote score (upvotes − down votes). Used to order the active playlist.
+   */
+  @Field(() => Int)
+  @prop({ required: true, default: 0, index: true, type: Number })
+  score!: number;
 
   /** Resolved iframe src for this item's provider. Computed at the GraphQL layer. */
   @Field(() => String)

@@ -107,7 +107,7 @@ describe("GraphQL QueueItem API", () => {
     return response.body.data.joinRoom.id as string;
   }
 
-  it("adds queue items and lists them in submission order with embed urls", async () => {
+  it("adds queue items and lists them by score then oldest first", async () => {
     const created = await createRoom("Desk");
     const guestId = await joinGuest(created.room.shortId, "Maya");
 
@@ -123,6 +123,7 @@ describe("GraphQL QueueItem API", () => {
               title
               thumbnailUrl
               embedUrl
+              score
               participantId
               roomId
             }
@@ -141,6 +142,7 @@ describe("GraphQL QueueItem API", () => {
       title: "Never Gonna Give You Up",
       thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
       embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+      score: 0,
       participantId: guestId,
       roomId: created.room.id,
     });
@@ -153,6 +155,7 @@ describe("GraphQL QueueItem API", () => {
             addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
               externalId
               title
+              score
             }
           }
         `,
@@ -174,10 +177,11 @@ describe("GraphQL QueueItem API", () => {
               externalId
               title
               thumbnailUrl
+              score
               participant { id }
             }
             room(id: $roomId) {
-              queueItems { externalId title }
+              queueItems { externalId title score }
             }
           }
         `,
@@ -185,23 +189,30 @@ describe("GraphQL QueueItem API", () => {
       });
 
     expect(listResponse.body.errors).toBeUndefined();
+    // Equal scores: older submission first.
     expect(listResponse.body.data.queueItems).toEqual([
       {
         externalId: "dQw4w9WgXcQ",
         title: "Never Gonna Give You Up",
         thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        score: 0,
         participant: { id: guestId },
       },
       {
         externalId: "jNQXAC9IVRw",
         title: "Me at the zoo",
         thumbnailUrl: "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg",
+        score: 0,
         participant: { id: guestId },
       },
     ]);
     expect(listResponse.body.data.room.queueItems).toEqual([
-      { externalId: "dQw4w9WgXcQ", title: "Never Gonna Give You Up" },
-      { externalId: "jNQXAC9IVRw", title: "Me at the zoo" },
+      {
+        externalId: "dQw4w9WgXcQ",
+        title: "Never Gonna Give You Up",
+        score: 0,
+      },
+      { externalId: "jNQXAC9IVRw", title: "Me at the zoo", score: 0 },
     ]);
   });
 

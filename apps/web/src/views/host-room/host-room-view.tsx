@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@apollo/client/react";
 import { RoomQueryState } from "@/composites/room-query-state";
@@ -7,6 +7,7 @@ import { PlaylistPanel } from "@/features/host-desk/playlist-panel";
 import { VideoViewer } from "@/features/host-desk/video-viewer";
 import { useRoomQueue } from "@/features/queue/use-room-queue";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
+import type { QueueItemFields } from "@/graphql/queue-items";
 import { GET_ROOM, type RoomFields } from "@/graphql/rooms";
 import { Button } from "@/primitives/button";
 import { Text } from "@/primitives/text";
@@ -31,21 +32,27 @@ export function HostRoomView() {
 
   const room = data?.room;
   const { items: queueItems, popQueueItem } = useRoomQueue(room?.id ?? "");
-  const nowPlaying = queueItems[0] ?? null;
-  const poppingIdRef = useRef<string | null>(null);
+  const [nowPlaying, setNowPlaying] = useState<QueueItemFields | null>(null);
+  const advancingRef = useRef(false);
 
-  const handleTrackEnded = useCallback(() => {
-    const current = nowPlaying;
-    if (!current || poppingIdRef.current === current.id) {
+  // As soon as a track is selected for playback, soft-pop it from the votable
+  // queue so later vote reshuffles cannot skip or displace it.
+  useEffect(() => {
+    if (nowPlaying || advancingRef.current || queueItems.length === 0) {
       return;
     }
-    poppingIdRef.current = current.id;
-    void popQueueItem(current.id).finally(() => {
-      if (poppingIdRef.current === current.id) {
-        poppingIdRef.current = null;
-      }
+
+    const next = queueItems[0];
+    advancingRef.current = true;
+    setNowPlaying(next);
+    void popQueueItem(next.id).finally(() => {
+      advancingRef.current = false;
     });
-  }, [nowPlaying, popQueueItem]);
+  }, [nowPlaying, queueItems, popQueueItem]);
+
+  const handleTrackEnded = useCallback(() => {
+    setNowPlaying(null);
+  }, []);
 
   if (loading || error || !room) {
     return (
