@@ -3,7 +3,7 @@
   "fluid": true,
   "buildCommand": "npm run build -w @athens-fm/web",
   "outputDirectory": "apps/web/dist",
-  "installCommand": "npm install --include=dev",
+  "installCommand": "npm install --include=dev --workspaces -w @athens-fm/web -w @athens-fm/api",
   "framework": null,
   "functions": {
     "api/index.ts": {
