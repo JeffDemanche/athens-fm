@@ -8,6 +8,7 @@ export const ROOM_EVENT_FIELDS = gql`
     participantName
     participantRole
     type
+    detail
     createdAt
   }
 `;
@@ -36,6 +37,12 @@ export type RoomEventFields = {
   participantId: string;
   participantName: string | null;
   participantRole: "HOST" | "GUEST";
-  type: "JOINED" | "LEFT";
+  type:
+    | "JOINED"
+    | "LEFT"
+    | "ITEM_SUBMITTED"
+    | "BECAME_INACTIVE"
+    | "NOW_PLAYING";
+  detail: string | null;
   createdAt: string;
 };

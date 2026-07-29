@@ -334,6 +334,41 @@ describe("GraphQL QueueItem API", () => {
         finished: true,
       },
     });
+
+    const eventsResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          query RoomEvents($roomId: ID!) {
+            roomEvents(roomId: $roomId) {
+              type
+              participantName
+              detail
+            }
+          }
+        `,
+        variables: { roomId: created.room.id },
+      });
+    expect(eventsResponse.body.errors).toBeUndefined();
+    expect(eventsResponse.body.data.roomEvents).toEqual(
+      expect.arrayContaining([
+        {
+          type: "ITEM_SUBMITTED",
+          participantName: "Sam",
+          detail: "Never Gonna Give You Up",
+        },
+        {
+          type: "ITEM_SUBMITTED",
+          participantName: "Sam",
+          detail: "Me at the zoo",
+        },
+        {
+          type: "NOW_PLAYING",
+          participantName: "Sam",
+          detail: "Never Gonna Give You Up",
+        },
+      ]),
+    );
   });
 
   it("rejects invalid youtube media refs", async () => {

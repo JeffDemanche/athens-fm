@@ -2,6 +2,7 @@ import {
   QueueItemType,
   type QueueItem,
 } from "../entities/QueueItem.js";
+import { ParticipantRole } from "../entities/Participant.js";
 import {
   publishQueueItemAdded,
   publishQueueItemPopped,
@@ -21,6 +22,10 @@ import { participantRepository } from "../repositories/participantRepository.js"
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import { roomRepository } from "../repositories/roomRepository.js";
 import {
+  roomEventService,
+  type RoomEventService,
+} from "./roomEventService.js";
+import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
@@ -31,6 +36,7 @@ export function createQueueItemService(
   participants: ParticipantRepository = participantRepository,
   metadata: MediaMetadataProvider = mediaMetadataProvider,
   skipVotes: SkipVoteService = skipVoteService,
+  events: RoomEventService = roomEventService,
 ) {
   return {
     async listByRoom(roomIdOrShortId: string): Promise<QueueItem[]> {
@@ -77,6 +83,7 @@ export function createQueueItemService(
       });
 
       await participants.touchLastActive(participant.id);
+      await events.recordItemSubmitted(participant, title);
       publishQueueItemAdded(room.id, item);
       await skipVotes.publishStateForRoom(room.id);
       return item;
@@ -103,6 +110,22 @@ export function createQueueItemService(
 
       const roomId = String(item.roomId);
       await skipVotes.resetForNowPlaying(roomId, item.id);
+
+      const submitter = await participants.findById(String(item.participantId));
+      await events.recordNowPlaying(
+        submitter ?? {
+          id: String(item.participantId),
+          roomId,
+          name: null,
+          nameKey: null,
+          role: ParticipantRole.GUEST,
+          lastActiveAt: null,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        },
+        item.title,
+      );
+
       publishQueueItemPopped(roomId, item);
       return item;
     },

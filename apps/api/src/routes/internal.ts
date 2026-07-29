@@ -26,6 +26,7 @@ async function sweepInactive(
     res.json({
       ok: true,
       sweptRoomCount: result.roomIds.length,
+      inactiveEventCount: result.inactiveEventCount,
       roomIds: result.roomIds,
     });
   } catch (error) {

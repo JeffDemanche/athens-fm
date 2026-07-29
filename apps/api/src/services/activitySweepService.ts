@@ -7,22 +7,29 @@ import {
   type ParticipantRepository,
 } from "../repositories/participantRepository.js";
 import {
+  roomEventService,
+  type RoomEventService,
+} from "./roomEventService.js";
+import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
 
 export type ActivitySweepResult = {
   roomIds: string[];
+  inactiveEventCount: number;
 };
 
 export function createActivitySweepService(
   participants: ParticipantRepository = participantRepository,
   skipVotes: SkipVoteService = skipVoteService,
+  events: RoomEventService = roomEventService,
 ) {
   return {
     /**
-     * Find rooms where a guest just aged out of the 20m active TTL and
-     * republish skipVoteStateUpdated so UI active counts stay current.
+     * Find guests who just aged out of the 20m active TTL, post brief
+     * BECAME_INACTIVE room events, and republish skipVoteStateUpdated so UI
+     * active counts stay current.
      */
     async sweep(
       now: Date = new Date(),
@@ -32,16 +39,28 @@ export function createActivitySweepService(
         now,
         lookbackMs,
       );
-      const roomIds = await participants.findRoomIdsWithGuestsExpiredBetween(
+      const expiredGuests = await participants.findGuestsExpiredBetween(
         expiredAfter,
         expiredBefore,
       );
+
+      let inactiveEventCount = 0;
+      const roomIds = new Set<string>();
+
+      for (const guest of expiredGuests) {
+        const roomId = String(guest.roomId);
+        roomIds.add(roomId);
+        const event = await events.recordBecameInactive(guest);
+        if (event) {
+          inactiveEventCount += 1;
+        }
+      }
 
       for (const roomId of roomIds) {
         await skipVotes.publishStateForRoom(roomId);
       }
 
-      return { roomIds };
+      return { roomIds: [...roomIds], inactiveEventCount };
     },
   };
 }

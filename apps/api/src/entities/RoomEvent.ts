@@ -20,11 +20,14 @@ import { Room } from "./Room.js";
 export enum RoomEventType {
   JOINED = "JOINED",
   LEFT = "LEFT",
+  ITEM_SUBMITTED = "ITEM_SUBMITTED",
+  BECAME_INACTIVE = "BECAME_INACTIVE",
+  NOW_PLAYING = "NOW_PLAYING",
 }
 
 registerEnumType(RoomEventType, {
   name: "RoomEventType",
-  description: "Lifecycle events that participants emit in a room",
+  description: "Brief activity events shown in the room feed",
 });
 
 @ObjectType()
@@ -71,6 +74,11 @@ export class RoomEvent {
     type: String,
   })
   type!: RoomEventType;
+
+  /** Optional short context (e.g. track title for submit / now-playing). */
+  @Field(() => String, { nullable: true })
+  @prop({ required: false, type: String })
+  detail?: string | null;
 
   @Field(() => GraphQLISODateTime)
   createdAt!: Date;

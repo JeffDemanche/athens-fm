@@ -35,10 +35,34 @@ function eventCopy(event: RoomEventFields): ReactNode {
   ) : (
     actorLabel
   );
-  if (event.type === "JOINED") {
-    return <>{actor} joined the room</>;
+  const detail = event.detail?.trim();
+
+  switch (event.type) {
+    case "JOINED":
+      return <>{actor} joined the room</>;
+    case "LEFT":
+      return <>{actor} left the room</>;
+    case "ITEM_SUBMITTED":
+      return detail ? (
+        <>
+          {actor} submitted <span className="font-semibold">{detail}</span>
+        </>
+      ) : (
+        <>{actor} submitted a track</>
+      );
+    case "BECAME_INACTIVE":
+      return <>{actor} went inactive</>;
+    case "NOW_PLAYING":
+      return detail ? (
+        <>
+          Now playing <span className="font-semibold">{detail}</span>
+        </>
+      ) : (
+        <>Now playing the next track</>
+      );
+    default:
+      return <>{actor} updated the room</>;
   }
-  return <>{actor} left the room</>;
 }
 
 function formatEventTime(iso: string): string {
@@ -98,7 +122,7 @@ export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
   return (
     <DeskPanel
       title="Activity"
-      description="Live joins and leaves in this room"
+      description="Live room updates"
       className={cn(className)}
     >
       {loading && events.length === 0 ? (
@@ -110,7 +134,7 @@ export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
       ) : events.length === 0 ? (
         <div className="flex h-full items-center justify-center px-4 py-8">
           <Text tone="muted" size="sm" className="text-center">
-            Room events will show up here as people join and leave.
+            Room events will show up here as people join, submit, and play.
           </Text>
         </div>
       ) : (

@@ -12,6 +12,23 @@ export function createRoomEventService(
   repo: RoomEventRepository = roomEventRepository,
   rooms: RoomRepository = roomRepository,
 ) {
+  async function record(
+    participant: Participant,
+    type: RoomEventType,
+    detail?: string | null,
+  ): Promise<RoomEvent> {
+    const event = await repo.create({
+      roomId: String(participant.roomId),
+      participantId: participant.id,
+      participantName: participant.name ?? null,
+      participantRole: participant.role,
+      type,
+      detail: detail ?? null,
+    });
+    publishRoomEvent(String(participant.roomId), event);
+    return event;
+  }
+
   return {
     async listByRoom(roomIdOrShortId: string): Promise<RoomEvent[]> {
       const room = await rooms.findById(roomIdOrShortId);
@@ -22,27 +39,44 @@ export function createRoomEventService(
     },
 
     async recordJoin(participant: Participant): Promise<RoomEvent> {
-      const event = await repo.create({
-        roomId: String(participant.roomId),
-        participantId: participant.id,
-        participantName: participant.name ?? null,
-        participantRole: participant.role,
-        type: RoomEventType.JOINED,
-      });
-      publishRoomEvent(String(participant.roomId), event);
-      return event;
+      return record(participant, RoomEventType.JOINED);
     },
 
     async recordLeave(participant: Participant): Promise<RoomEvent> {
-      const event = await repo.create({
-        roomId: String(participant.roomId),
+      return record(participant, RoomEventType.LEFT);
+    },
+
+    async recordItemSubmitted(
+      participant: Participant,
+      title: string,
+    ): Promise<RoomEvent> {
+      return record(participant, RoomEventType.ITEM_SUBMITTED, title);
+    },
+
+    async recordNowPlaying(
+      participant: Participant,
+      title: string,
+    ): Promise<RoomEvent> {
+      return record(participant, RoomEventType.NOW_PLAYING, title);
+    },
+
+    /**
+     * Posts once per inactivity crossing. Overlapping sweep windows skip when
+     * a BECAME_INACTIVE already exists at/after the guest's lastActiveAt.
+     */
+    async recordBecameInactive(
+      participant: Participant,
+    ): Promise<RoomEvent | null> {
+      const since = participant.lastActiveAt ?? participant.createdAt;
+      const alreadyRecorded = await repo.existsForParticipantSince({
         participantId: participant.id,
-        participantName: participant.name ?? null,
-        participantRole: participant.role,
-        type: RoomEventType.LEFT,
+        type: RoomEventType.BECAME_INACTIVE,
+        since,
       });
-      publishRoomEvent(String(participant.roomId), event);
-      return event;
+      if (alreadyRecorded) {
+        return null;
+      }
+      return record(participant, RoomEventType.BECAME_INACTIVE);
     },
   };
 }

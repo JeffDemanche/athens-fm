@@ -83,17 +83,22 @@ function createFakeParticipants(
     async countActiveGuests(roomId, since = activeSince()) {
       return (await this.findActiveGuestIds(roomId, since)).length;
     },
-    async findRoomIdsWithGuestsExpiredBetween(expiredAfter, expiredBefore) {
-      const roomIds = new Set<string>();
-      for (const participant of participants) {
-        if (
+    async findGuestsExpiredBetween(expiredAfter, expiredBefore) {
+      return participants.filter(
+        (participant) =>
           participant.role === ParticipantRole.GUEST &&
           participant.lastActiveAt != null &&
           participant.lastActiveAt >= expiredAfter &&
-          participant.lastActiveAt < expiredBefore
-        ) {
-          roomIds.add(String(participant.roomId));
-        }
+          participant.lastActiveAt < expiredBefore,
+      );
+    },
+    async findRoomIdsWithGuestsExpiredBetween(expiredAfter, expiredBefore) {
+      const roomIds = new Set<string>();
+      for (const participant of await this.findGuestsExpiredBetween(
+        expiredAfter,
+        expiredBefore,
+      )) {
+        roomIds.add(String(participant.roomId));
       }
       return [...roomIds];
     },
@@ -171,40 +176,52 @@ function createFakeSkipVotes(): SkipVoteService & {
 
 function createFakeEvents(): RoomEventService & { events: RoomEvent[] } {
   const events: RoomEvent[] = [];
+
+  function push(
+    participant: {
+      id: string;
+      roomId: string | { toString(): string };
+      name?: string | null;
+      role: RoomEvent["participantRole"];
+    },
+    type: RoomEventType,
+    detail: string | null = null,
+  ): RoomEvent {
+    const now = new Date();
+    const event: RoomEvent = {
+      id: `event_${events.length + 1}`,
+      roomId: String(participant.roomId),
+      participantId: participant.id,
+      participantName: participant.name ?? null,
+      participantRole: participant.role,
+      type,
+      detail,
+      createdAt: now,
+      updatedAt: now,
+    };
+    events.push(event);
+    return event;
+  }
+
   return {
     events,
     async listByRoom(roomId) {
       return events.filter((event) => event.roomId === roomId);
     },
     async recordJoin(participant) {
-      const now = new Date();
-      const event: RoomEvent = {
-        id: `event_${events.length + 1}`,
-        roomId: String(participant.roomId),
-        participantId: participant.id,
-        participantName: participant.name ?? null,
-        participantRole: participant.role,
-        type: RoomEventType.JOINED,
-        createdAt: now,
-        updatedAt: now,
-      };
-      events.push(event);
-      return event;
+      return push(participant, RoomEventType.JOINED);
     },
     async recordLeave(participant) {
-      const now = new Date();
-      const event: RoomEvent = {
-        id: `event_${events.length + 1}`,
-        roomId: String(participant.roomId),
-        participantId: participant.id,
-        participantName: participant.name ?? null,
-        participantRole: participant.role,
-        type: RoomEventType.LEFT,
-        createdAt: now,
-        updatedAt: now,
-      };
-      events.push(event);
-      return event;
+      return push(participant, RoomEventType.LEFT);
+    },
+    async recordItemSubmitted(participant, title) {
+      return push(participant, RoomEventType.ITEM_SUBMITTED, title);
+    },
+    async recordNowPlaying(participant, title) {
+      return push(participant, RoomEventType.NOW_PLAYING, title);
+    },
+    async recordBecameInactive(participant) {
+      return push(participant, RoomEventType.BECAME_INACTIVE);
     },
   };
 }

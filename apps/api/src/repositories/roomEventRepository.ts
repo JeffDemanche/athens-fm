@@ -13,6 +13,7 @@ function toRoomEvent(doc: {
   participantName?: string | null;
   participantRole: ParticipantRole;
   type: RoomEventType;
+  detail?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): RoomEvent {
@@ -23,6 +24,7 @@ function toRoomEvent(doc: {
     participantName: doc.participantName ?? null,
     participantRole: doc.participantRole,
     type: doc.type,
+    detail: doc.detail ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -40,12 +42,35 @@ export const roomEventRepository = {
     return docs.map((doc) => toRoomEvent(doc));
   },
 
+  /**
+   * True when a BECAME_INACTIVE (or other type) was already recorded for this
+   * participant at or after `since` — used to avoid duplicate inactivity posts
+   * when the sweep lookback overlaps consecutive runs.
+   */
+  async existsForParticipantSince(input: {
+    participantId: string;
+    type: RoomEventType;
+    since: Date;
+  }): Promise<boolean> {
+    if (!mongoose.isValidObjectId(input.participantId)) {
+      return false;
+    }
+
+    const count = await RoomEventModel.countDocuments({
+      participantId: input.participantId,
+      type: input.type,
+      createdAt: { $gte: input.since },
+    }).exec();
+    return count > 0;
+  },
+
   async create(input: {
     roomId: string;
     participantId: string;
     participantName?: string | null;
     participantRole: ParticipantRole;
     type: RoomEventType;
+    detail?: string | null;
   }): Promise<RoomEvent> {
     if (!mongoose.isValidObjectId(input.roomId)) {
       throw new Error("Invalid room id");
@@ -60,6 +85,7 @@ export const roomEventRepository = {
       participantName: input.participantName ?? null,
       participantRole: input.participantRole,
       type: input.type,
+      detail: input.detail ?? null,
     });
     return toRoomEvent(doc);
   },

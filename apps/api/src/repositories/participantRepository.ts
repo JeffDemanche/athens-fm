@@ -97,6 +97,27 @@ export const participantRepository = {
   },
 
   /**
+   * Guests whose lastActiveAt falls in [expiredAfter, expiredBefore) — i.e.
+   * they aged out of the active set in that window.
+   */
+  async findGuestsExpiredBetween(
+    expiredAfter: Date,
+    expiredBefore: Date,
+  ): Promise<Participant[]> {
+    if (mongoose.connection.readyState !== 1) {
+      return [];
+    }
+
+    const docs = await ParticipantModel.find({
+      role: ParticipantRole.GUEST,
+      lastActiveAt: { $gte: expiredAfter, $lt: expiredBefore },
+    })
+      .sort({ lastActiveAt: 1 })
+      .exec();
+    return docs.map((doc) => toParticipant(doc));
+  },
+
+  /**
    * Distinct room ids with at least one guest whose lastActiveAt falls in
    * [expiredAfter, expiredBefore) — i.e. they aged out of the active set in
    * that window.
