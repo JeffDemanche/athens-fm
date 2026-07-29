@@ -30,6 +30,14 @@ export class ParticipantResolver {
     return context.services.participant.leave(participantId);
   }
 
+  @Mutation(() => Participant)
+  async touchParticipantActivity(
+    @Arg("participantId", () => ID) participantId: string,
+    @Ctx() context: GraphQLContext,
+  ): Promise<Participant> {
+    return context.services.participant.touchActivity(participantId);
+  }
+
   @FieldResolver(() => Room, { nullable: true })
   async room(
     @Root() participant: Participant,

@@ -7,6 +7,8 @@ import { AddQueueItemForm } from "@/features/queue/add-queue-item-form";
 import { ParticipantQueue } from "@/features/queue/participant-queue";
 import { RoomDetail } from "@/features/room-detail/room-detail";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
+import { useParticipantActivity } from "@/features/room-membership/use-participant-activity";
+import { SkipVoteToggle } from "@/features/skip-vote/skip-vote-toggle";
 import { JOIN_ROOM } from "@/graphql/participants";
 import { GET_ROOM, type ParticipantFields, type RoomFields } from "@/graphql/rooms";
 import {
@@ -64,6 +66,10 @@ export function ParticipantRoomView() {
     }
     return null;
   });
+
+  useParticipantActivity(
+    ready && existing?.role === "GUEST" ? existing.participantId : null,
+  );
 
   const { data, loading, error } = useQuery<GetRoomResult, GetRoomVars>(
     GET_ROOM,
@@ -153,6 +159,10 @@ export function ParticipantRoomView() {
         <RoomDetail roomId={roomId} roleLabel="Listening">
           {(room) => (
             <Stack gap="md">
+              <SkipVoteToggle
+                roomId={room.id}
+                participantId={existing.participantId}
+              />
               <AddQueueItemForm
                 participantId={existing.participantId}
                 roomId={room.id}

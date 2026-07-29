@@ -13,6 +13,10 @@ import {
   voteRepository,
   type VoteRepository,
 } from "../repositories/voteRepository.js";
+import {
+  skipVoteService,
+  type SkipVoteService,
+} from "./skipVoteService.js";
 
 function scoreDelta(
   previous: VoteValue | null,
@@ -35,6 +39,7 @@ export function createVoteService(
   queueItems: QueueItemRepository = queueItemRepository,
   participants: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
+  skipVotes: SkipVoteService = skipVoteService,
 ) {
   return {
     async getViewerVote(
@@ -92,6 +97,8 @@ export function createVoteService(
         throw new AppError("Participant is not in this room", 403);
       }
 
+      await participants.touchLastActive(participant.id);
+
       const existing = await votes.findByQueueItemAndParticipant(
         item.id,
         participant.id,
@@ -122,6 +129,7 @@ export function createVoteService(
       }
 
       publishQueueItemUpdated(String(updated.roomId), updated);
+      await skipVotes.publishStateForRoom(String(updated.roomId));
       return { queueItem: updated, value: nextValue };
     },
   };

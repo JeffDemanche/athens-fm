@@ -4,6 +4,7 @@ import {
   ParticipantRole,
   type Participant,
 } from "../entities/Participant.js";
+import { activeSince } from "../lib/activeParticipant.js";
 import { participantNameKey } from "../lib/participantName.js";
 
 function toParticipant(doc: {
@@ -12,6 +13,7 @@ function toParticipant(doc: {
   name?: string | null;
   nameKey?: string | null;
   role: ParticipantRole;
+  lastActiveAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): Participant {
@@ -21,6 +23,7 @@ function toParticipant(doc: {
     name: doc.name ?? null,
     nameKey: doc.nameKey ?? null,
     role: doc.role,
+    lastActiveAt: doc.lastActiveAt ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -59,10 +62,45 @@ export const participantRepository = {
     return doc ? toParticipant(doc) : null;
   },
 
+  /** Guest ids whose lastActiveAt is within the active TTL. */
+  async findActiveGuestIds(
+    roomId: string,
+    since: Date = activeSince(),
+  ): Promise<string[]> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      return [];
+    }
+
+    const docs = await ParticipantModel.find({
+      roomId,
+      role: ParticipantRole.GUEST,
+      lastActiveAt: { $gte: since },
+    })
+      .select({ _id: 1 })
+      .exec();
+    return docs.map((doc) => String(doc._id));
+  },
+
+  async countActiveGuests(
+    roomId: string,
+    since: Date = activeSince(),
+  ): Promise<number> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      return 0;
+    }
+
+    return ParticipantModel.countDocuments({
+      roomId,
+      role: ParticipantRole.GUEST,
+      lastActiveAt: { $gte: since },
+    }).exec();
+  },
+
   async create(input: {
     roomId: string;
     name?: string | null;
     role: ParticipantRole;
+    lastActiveAt?: Date | null;
   }): Promise<Participant> {
     if (!mongoose.isValidObjectId(input.roomId)) {
       throw new Error("Invalid room id");
@@ -74,8 +112,25 @@ export const participantRepository = {
       name,
       nameKey: name ? participantNameKey(name) : null,
       role: input.role,
+      lastActiveAt: input.lastActiveAt ?? null,
     });
     return toParticipant(doc);
+  },
+
+  async touchLastActive(
+    id: string,
+    at: Date = new Date(),
+  ): Promise<Participant | null> {
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    const doc = await ParticipantModel.findByIdAndUpdate(
+      id,
+      { $set: { lastActiveAt: at } },
+      { new: true },
+    ).exec();
+    return doc ? toParticipant(doc) : null;
   },
 
   async deleteById(id: string): Promise<boolean> {

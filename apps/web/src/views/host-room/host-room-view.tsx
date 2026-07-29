@@ -7,6 +7,7 @@ import { PlaylistPanel } from "@/features/host-desk/playlist-panel";
 import { VideoViewer } from "@/features/host-desk/video-viewer";
 import { useRoomQueue } from "@/features/queue/use-room-queue";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
+import { useSkipVotes } from "@/features/skip-vote/use-skip-votes";
 import type { QueueItemFields } from "@/graphql/queue-items";
 import { GET_ROOM, type RoomFields } from "@/graphql/rooms";
 import { Button } from "@/primitives/button";
@@ -32,8 +33,10 @@ export function HostRoomView() {
 
   const room = data?.room;
   const { items: queueItems, popQueueItem } = useRoomQueue(room?.id ?? "");
+  const { state: skipState, clearNowPlaying } = useSkipVotes(room?.id ?? "");
   const [nowPlaying, setNowPlaying] = useState<QueueItemFields | null>(null);
   const advancingRef = useRef(false);
+  const skipHandledRef = useRef<string | null>(null);
 
   // As soon as a track is selected for playback, soft-pop it from the votable
   // queue so later vote reshuffles cannot skip or displace it.
@@ -53,6 +56,30 @@ export function HostRoomView() {
   const handleTrackEnded = useCallback(() => {
     setNowPlaying(null);
   }, []);
+
+  // When the track ends and nothing is queued, clear server now-playing so
+  // participant skip toggles disable until the next pop.
+  useEffect(() => {
+    if (nowPlaying || queueItems.length > 0 || !room?.id) {
+      return;
+    }
+    if (!skipState?.queueItemId) {
+      return;
+    }
+    void clearNowPlaying();
+  }, [nowPlaying, queueItems.length, room?.id, skipState?.queueItemId, clearNowPlaying]);
+
+  // Advance when skip quorum passes.
+  useEffect(() => {
+    if (!skipState?.passed || !nowPlaying) {
+      return;
+    }
+    if (skipHandledRef.current === skipState.queueItemId) {
+      return;
+    }
+    skipHandledRef.current = skipState.queueItemId;
+    setNowPlaying(null);
+  }, [skipState?.passed, skipState?.queueItemId, nowPlaying]);
 
   if (loading || error || !room) {
     return (
@@ -122,6 +149,10 @@ export function HostRoomView() {
               : null
           }
           title={nowPlaying?.title ?? null}
+          skipVoteCount={skipState?.voteCount ?? 0}
+          skipThreshold={skipState?.threshold ?? 0}
+          skipPassed={skipState?.passed ?? false}
+          activeParticipantCount={skipState?.participantCount ?? 0}
           onEnded={handleTrackEnded}
         />
         <ActivityFeed roomId={room.id} className="min-h-[12rem]" />

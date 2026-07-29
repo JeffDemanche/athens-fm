@@ -13,6 +13,10 @@ export const QUEUE_ITEM_FIELDS = gql`
     score
     embedUrl
     createdAt
+    participant {
+      id
+      name
+    }
   }
 `;
 
@@ -123,6 +127,10 @@ export type QueueItemFields = {
   score: number;
   embedUrl: string;
   createdAt: string;
+  participant?: {
+    id: string;
+    name: string | null;
+  } | null;
   viewerVote?: VoteValue | null;
 };
 

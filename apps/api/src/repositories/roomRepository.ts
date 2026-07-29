@@ -13,6 +13,7 @@ function toRoom(doc: {
   _id: mongoose.Types.ObjectId;
   shortId: string;
   name: string;
+  nowPlayingQueueItemId?: string | mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }): Room {
@@ -20,6 +21,9 @@ function toRoom(doc: {
     id: String(doc._id),
     shortId: doc.shortId,
     name: doc.name,
+    nowPlayingQueueItemId: doc.nowPlayingQueueItemId
+      ? String(doc.nowPlayingQueueItemId)
+      : null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -74,6 +78,25 @@ export const roomRepository = {
     }
 
     throw new Error("Failed to allocate a unique room short ID");
+  },
+
+  async setNowPlaying(
+    roomId: string,
+    queueItemId: string | null,
+  ): Promise<Room | null> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      return null;
+    }
+    if (queueItemId !== null && !mongoose.isValidObjectId(queueItemId)) {
+      throw new Error("Invalid queue item id");
+    }
+
+    const doc = await RoomModel.findByIdAndUpdate(
+      roomId,
+      { $set: { nowPlayingQueueItemId: queueItemId } },
+      { new: true },
+    ).exec();
+    return doc ? toRoom(doc) : null;
   },
 };
 

@@ -1,6 +1,8 @@
 import { DeskPanel } from "@/composites/desk-panel";
 import { useMediaPlayer } from "@/features/player/use-media-player";
 import type { EmbeddableMedia } from "@/features/player/types";
+import { ActiveParticipantsCount } from "@/features/skip-vote/active-participants-count";
+import { SkipVoteTally } from "@/features/skip-vote/skip-vote-tally";
 import { Text } from "@/primitives/text";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +10,10 @@ type VideoViewerProps = {
   className?: string;
   media?: EmbeddableMedia | null;
   title?: string | null;
+  skipVoteCount?: number;
+  skipThreshold?: number;
+  skipPassed?: boolean;
+  activeParticipantCount?: number;
   onEnded?: () => void;
 };
 
@@ -15,6 +21,10 @@ export function VideoViewer({
   className,
   media = null,
   title = null,
+  skipVoteCount = 0,
+  skipThreshold = 0,
+  skipPassed = false,
+  activeParticipantCount = 0,
   onEnded,
 }: VideoViewerProps) {
   const containerRef = useMediaPlayer(media, {
@@ -26,6 +36,18 @@ export function VideoViewer({
       title="Now playing"
       description={title ?? "YouTube embed for the current track"}
       className={cn(className)}
+      actions={
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <ActiveParticipantsCount count={activeParticipantCount} />
+          {media ? (
+            <SkipVoteTally
+              voteCount={skipVoteCount}
+              threshold={skipThreshold}
+              passed={skipPassed}
+            />
+          ) : null}
+        </div>
+      }
     >
       <div className="flex h-full min-h-0 items-stretch p-3">
         {media ? (

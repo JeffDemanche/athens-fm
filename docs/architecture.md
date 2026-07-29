@@ -3,7 +3,7 @@
 Living record of product concepts, technical architecture, and agent-facing conventions.
 Agents must **read this before making structural changes** and **update it when those details change**.
 
-Last updated: 2026-07-22
+Last updated: 2026-07-28
 
 ---
 
@@ -35,6 +35,8 @@ Workspaces are npm workspaces (`apps/*`). Root scripts orchestrate Dockerized `d
 | `npm run dev:stop` | `docker compose down --remove-orphans` — stops the stack |
 | `npm run dev:local` | Host-only web+api (no Docker); use when mongo/redis already run elsewhere |
 | `npm run db:reset` | Drops the `athens-fm` DB inside the running `athens-fm-mongo` container (`scripts/reset-mongo.sh`) |
+| `npm run db:migrate` | Applies pending Mongo data migrations (`apps/api` → `tsx src/migrations/cli.ts`; needs `MONGODB_URI`) |
+| `npm run vercel-build` | Web build then `db:migrate` — used as Vercel `buildCommand` so migrate must succeed before the deployment goes live |
 
 Compose services:
 - **mongo** — MongoDB 7 (compose network only; not published to host to avoid local Mongo port clashes)
@@ -67,11 +69,13 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Panel chrome via `composites/desk-panel`
   - **Activity feed** — chronological `RoomEvent` stream (join/leave); seeded via `roomEvents` query + live via `roomEventAdded` subscription (not a participant list)
   - **Queue** — seeded via `queueItems` query + live via `queueItemAdded` / `queueItemPopped` / `queueItemUpdated` subscriptions (`features/queue/use-room-queue`); ordered by net vote score desc, then oldest `createdAt`; viewer votes loaded separately via `myQueueVotes`
-  - **Player** — provider-agnostic `MediaPlayer` (`features/player/`); `YouTubeMediaPlayer` wraps the YouTube IFrame Player API (no API key required); factory `createMediaPlayer(type)`. Playlist tiles show persisted `title` + `thumbnailUrl` from the API. Host desk soft-pops (`popQueueItem`) as soon as an item starts playing so votes cannot reshuffle the active track; on embed `ENDED`, clears local now-playing and advances to the next queue head the same way.
-  - **Participant room** — YouTube URL/id submit form (`addQueueItem`) + live horizontal queue list of all upcoming room tracks with per-item up/down vote toggles (`voteOnQueueItem`)
+  - **Player** — provider-agnostic `MediaPlayer` (`features/player/`); `YouTubeMediaPlayer` wraps the YouTube IFrame Player API (no API key required); factory `createMediaPlayer(type)`. Playlist tiles show persisted `title` + `thumbnailUrl` from the API. Host desk soft-pops (`popQueueItem`) as soon as an item starts playing so votes cannot reshuffle the active track; on embed `ENDED`, clears local now-playing and advances to the next queue head the same way. Soft-pop also sets `Room.nowPlayingQueueItemId` and resets skip votes (broadcast via `skipVoteStateUpdated`). Host Now Playing header shows **Active** listener count and skip tally `voteCount/threshold`; when quorum passes, host advances like a natural end.
+  - **Participant room** — YouTube URL/id submit form (`addQueueItem`) + live horizontal queue list of all upcoming room tracks with per-item up/down vote toggles (`voteOnQueueItem`) + skip-current toggle (`toggleSkipVote`; resets when the next track soft-pops); participant-view interactions call `touchParticipantActivity` (20m active TTL for skip quorum)
 - **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
   - HTTP for queries/mutations; WebSocket (`graphql-ws`) for subscriptions on the same path
   - Client retries WS reconnects indefinitely with exponential backoff (Vercel Functions close sockets at `maxDuration`)
+  - On WS reconnect (`wasRetry`) and when the tab becomes visible again, refetch active queries — pub/sub events during a disconnect are not replayed
+  - Queue hooks use `nextFetchPolicy: cache-first` so remounts do not overwrite live subscription cache writes
 - **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL HTTP + WS (`ws: true` in Vite).
 - **Tests**: Jest + Testing Library (`jest.config.ts`, `jest.setup.ts`).
 - **UI convention**: Prefer shadcn components; add with `npx shadcn@latest add <name>` from `apps/web`.
@@ -89,24 +93,27 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 - **App factory**: async `createApp()` in `src/app.ts` — HTTP GraphQL only. Shared bootstrap `createHttpServer()` in `src/createHttpServer.ts` wires Mongo/Redis/pubsub + Express + `graphql-ws` (used by Docker entry and the Vercel adapter).
 - **HTTP routes**: `/api/health` (REST health); GraphQL at `POST /api/graphql` + `WS /api/graphql` (subscriptions).
 - **Domain**:
-  - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically; `queueItems` lists active `QueueItem`s by vote score
-  - `Participant` — `id`, `roomId`, `role` (`HOST` | `GUEST`), optional `name`/`nameKey` for guests only (unique per room, case-insensitive); hosts are unnamed desk operators
+  - `Room` — `id` (Mongo), `shortId` (5-char join code), `name`, optional `nowPlayingQueueItemId` (soft-popped item on the host desk), timestamps; `room(id)` accepts shortId or ObjectId; `participants` field lists members; `events` lists `RoomEvent`s chronologically; `queueItems` lists active `QueueItem`s by vote score
+  - `Participant` — `id`, `roomId`, `role` (`HOST` | `GUEST`), optional `name`/`nameKey` for guests only (unique per room, case-insensitive); hosts are unnamed desk operators; guests track `lastActiveAt` for skip quorum
   - `RoomEvent` — `id`, `roomId`, `participantId`, optional `participantName` + `participantRole` (denormalized), `type` (`JOINED` | `LEFT`), timestamps; persisted on join/leave and published over Redis pub/sub for live subscribers
   - `QueueItem` — `id`, `roomId`, `participantId` (submitter), `type` (`YOUTUBE` only for now), `externalId`, `title`, `thumbnailUrl` (fetched once via YouTube Data API at submit), `finished` (soft-pop flag; finished items stay in Mongo but are omitted from playlist queries), `score` (net up−down votes), computed `embedUrl`, timestamps; one room → many queue items
   - `Vote` — `id`, `roomId`, `queueItemId`, `participantId`, `value` (`UP` | `DOWN`), timestamps; unique per `(queueItemId, participantId)` — one vote per participant per item
+  - `SkipVote` — `id`, `roomId`, `queueItemId`, `participantId`, timestamps; unique per `(roomId, participantId)` — one skip intent per guest per room; cleared on each soft-pop / `clearNowPlaying`
   - Embed resolution — `src/lib/mediaEmbed.ts` parses provider media refs (YouTube URL/id) and builds privacy-enhanced embed URLs
   - Media metadata — `src/lib/mediaMetadata.ts` (`MediaMetadataProvider`); YouTube implementation calls Data API `videos.list` (`part=snippet`) using server env `YOUTUBE_API_KEY`
 - **Room shortId**: Ambiguity-safe alphabet (`A–Z` / `2–9`, no `0/O/1/I/L`); unique; used in `/rooms/:roomId` URLs and join form.
-- **Participant API**: `createRoom(name)` → `{ room, participant }` (unnamed host); `joinRoom(roomId, name)` → named guest; `leaveRoom(participantId)`; `participant(id)`
+- **Participant API**: `createRoom(name)` → `{ room, participant }` (unnamed host); `joinRoom(roomId, name)` → named guest (sets `lastActiveAt`); `leaveRoom(participantId)` (clears that guest’s skip vote); `touchParticipantActivity(participantId)` refreshes `lastActiveAt`; `participant(id)`
 - **RoomEvent API**: `roomEvents(roomId)`; `Room.events`; subscription `roomEventAdded(roomId)` (accepts shortId or ObjectId; fans out by Mongo room id)
-- **QueueItem API**: `queueItems(roomId)` / `Room.queueItems` (active/`finished: false` only, sorted by `score` desc then `createdAt` asc); `addQueueItem(participantId, type, mediaRef)`; `popQueueItem(id)` marks `finished: true` without deleting; field `viewerVote(participantId)` on `QueueItem`; subscriptions `queueItemAdded(roomId)`, `queueItemPopped(roomId)`, `queueItemUpdated(roomId)`
-- **Vote API**: `myQueueVotes(roomId, participantId)`; `voteOnQueueItem(participantId, queueItemId, value)` → `{ queueItem, value }` — upserts one vote per participant per item; submitting the same value again clears the vote; adjusts denormalized `score` and publishes `queueItemUpdated`
-- **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Topics: `ROOM_EVENT`, `QUEUE_ITEM_ADDED`, `QUEUE_ITEM_POPPED`, `QUEUE_ITEM_UPDATED`. Transport: `graphql-ws` over WebSockets.
+- **QueueItem API**: `queueItems(roomId)` / `Room.queueItems` (active/`finished: false` only, sorted by `score` desc then `createdAt` asc); `addQueueItem(participantId, type, mediaRef)` (touches activity); `popQueueItem(id)` marks `finished: true`, sets `Room.nowPlayingQueueItemId`, clears skip votes, publishes `queueItemPopped` + `skipVoteStateUpdated`; field `viewerVote(participantId)` on `QueueItem`; subscriptions `queueItemAdded(roomId)`, `queueItemPopped(roomId)`, `queueItemUpdated(roomId)`
+- **Vote API**: `myQueueVotes(roomId, participantId)`; `voteOnQueueItem(participantId, queueItemId, value)` → `{ queueItem, value }` — upserts one vote per participant per item; submitting the same value again clears the vote; adjusts denormalized `score`, touches activity, and publishes `queueItemUpdated` + `skipVoteStateUpdated`
+- **Skip vote API**: `skipVoteState(roomId, participantId?)` → `{ queueItemId, voteCount, participantCount, threshold, passed, viewerHasVoted }`; `toggleSkipVote(participantId)` toggles skip for current now-playing (touches activity); `clearNowPlaying(roomId)` when the desk goes idle; subscription `skipVoteStateUpdated(roomId)`. Quorum = simple majority of **active guests** (`floor(n/2)+1`) where active means `lastActiveAt` within **20 minutes**. Skip `voteCount` only includes votes from currently active guests. Host Now Playing shows active count + `voteCount/threshold`. Participant view touches activity on mount and on interaction (throttled).
+- **Realtime**: TypeGraphQL + `@graphql-yoga/subscription`; Redis via `@graphql-yoga/redis-event-target` when `REDIS_URL` is set, otherwise in-memory pub/sub (single process / tests). Topics: `ROOM_EVENT`, `QUEUE_ITEM_ADDED`, `QUEUE_ITEM_POPPED`, `QUEUE_ITEM_UPDATED`, `SKIP_VOTE_STATE`. Transport: `graphql-ws` over WebSockets.
 - **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role, participantName? }`. One active room per browser — create/join blocked while set; leave clears it. Hosts stay on `/rooms/:id/host` (no participant view).
 - **Display names**: Required for guests only; rejected with a user-facing error when already taken in that room (case-insensitive).
 - **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
+- **Migrations**: Forward-only scripts in `apps/api/src/migrations/` (registry + runner). **Primary:** Vercel Production `buildCommand` → `npm run vercel-build` (web build + `db:migrate`) so a failed migrate blocks the deployment. **Safety net:** API boot after Mongo connect. **Skipped** when `VERCEL_ENV=preview` or `SKIP_DB_MIGRATIONS=1`. Manual: `npm run db:migrate`. Tracking `_migrations` / lock `_migration_locks`. Details: [`docs/migrations.md`](./migrations.md).
 - **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts` for health/general; separate ioredis publisher+subscriber clients for GraphQL pub/sub).
-- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant/RoomEvent/QueueItem tests use `mongodb-memory-server`.
+- **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant/RoomEvent/QueueItem/SkipVote tests use `mongodb-memory-server`.
 
 ## Vercel deployment
 
@@ -116,7 +123,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Install: `npm install --include=dev --workspaces -w @athens-fm/web -w @athens-fm/api` (+ root `.npmrc` `include=dev`)
     - Explicit `-w` / `--workspaces` forces both app packages to install (Express detection previously filtered to `@athens-fm/api` only)
   - Web build toolchain (`vite`, `typescript`, Tailwind plugins, React types) lives in `@athens-fm/web` `dependencies`; Jest stays in `devDependencies` and is excluded from production `tsc -b`
-  - Builds `@athens-fm/web` → `apps/web/dist`
+  - Builds `@athens-fm/web` → `apps/web/dist`, then runs `db:migrate` (`npm run vercel-build`). On Production, migrate failure fails the build / blocks the new deployment. On Preview (`VERCEL_ENV=preview`), migrate is a no-op.
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
 - **Serverless entry**: `api/index.ts` exports an `http.Server` from `createHttpServer()` (Express + Apollo HTTP + `graphql-ws` WebSockets). Matches [Vercel Functions WebSockets](https://vercel.com/docs/functions/websockets) (native Node `ws`, not `experimental_upgradeWebSocket`).
@@ -125,6 +132,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - `attachDatabasePool` from `@vercel/functions` is applied to Mongo + Redis clients for Fluid idle pool release
 - **Env vars** (set in Vercel project + local `.env`):
   - `MONGODB_URI` — Atlas (or other) connection string
+  - `SKIP_DB_MIGRATIONS` — set to `1` to skip deploy-time and boot-time migrations (emergency only). Preview deploys also skip via `VERCEL_ENV=preview`.
   - `REDIS_URL` — **required for multi-listener production** (e.g. Upstash / Vercel Marketplace Redis); without it, pub/sub is in-memory per instance only
   - `CORS_ORIGIN` — production web origin(s), comma-separated if multiple
   - `PORT` — local/docker only
@@ -149,6 +157,7 @@ Both packages use TypeScript Jest configs. Keep new features covered at least wi
 2. After any of those changes land — update the relevant section here in the same change set.
 3. Prefer short factual bullets over essays; date the “Last updated” line.
 4. Put deep feature design notes in sibling files under `docs/` and link them from here.
+5. Backwards-incompatible Typegoose / Mongo shape changes require a tested migration — see [`docs/migrations.md`](./migrations.md) and `.cursor/rules/mongo-migrations.mdc`.
 
 ## Open / undecided
 

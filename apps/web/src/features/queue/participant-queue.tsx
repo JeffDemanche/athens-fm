@@ -62,12 +62,20 @@ export function ParticipantQueue({
                     : "border-border/70 bg-background/80",
                 )}
               >
-                <div className="mb-2 aspect-video overflow-hidden rounded bg-muted">
+                <div className="relative mb-2 aspect-video overflow-hidden rounded bg-muted">
                   <img
                     src={item.thumbnailUrl}
                     alt=""
                     className="h-full w-full object-cover"
                   />
+                  {item.participant?.name ? (
+                    <Text
+                      size="sm"
+                      className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full bg-background/85 px-2 py-0.5 text-xs font-semibold"
+                    >
+                      {item.participant.name}
+                    </Text>
+                  ) : null}
                 </div>
                 <Text as="p" size="sm" className="line-clamp-2 font-medium">
                   #{index + 1} · {item.title}

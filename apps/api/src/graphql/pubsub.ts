@@ -4,17 +4,20 @@ import { Redis } from "ioredis";
 import type { PubSub } from "type-graphql";
 import type { QueueItem } from "../entities/QueueItem.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
+import type { SkipVoteState } from "../entities/SkipVoteState.js";
 
 export const ROOM_EVENT_TOPIC = "ROOM_EVENT" as const;
 export const QUEUE_ITEM_ADDED_TOPIC = "QUEUE_ITEM_ADDED" as const;
 export const QUEUE_ITEM_POPPED_TOPIC = "QUEUE_ITEM_POPPED" as const;
 export const QUEUE_ITEM_UPDATED_TOPIC = "QUEUE_ITEM_UPDATED" as const;
+export const SKIP_VOTE_STATE_TOPIC = "SKIP_VOTE_STATE" as const;
 
 type PubSubTopics = {
   [ROOM_EVENT_TOPIC]: [roomId: string, payload: RoomEvent];
   [QUEUE_ITEM_ADDED_TOPIC]: [roomId: string, payload: QueueItem];
   [QUEUE_ITEM_POPPED_TOPIC]: [roomId: string, payload: QueueItem];
   [QUEUE_ITEM_UPDATED_TOPIC]: [roomId: string, payload: QueueItem];
+  [SKIP_VOTE_STATE_TOPIC]: [roomId: string, payload: SkipVoteState];
 };
 
 type TopicName = keyof PubSubTopics;
@@ -110,4 +113,11 @@ export function publishQueueItemPopped(roomId: string, item: QueueItem): void {
 
 export function publishQueueItemUpdated(roomId: string, item: QueueItem): void {
   pubSub.publish(QUEUE_ITEM_UPDATED_TOPIC, roomId, item);
+}
+
+export function publishSkipVoteStateUpdated(
+  roomId: string,
+  state: SkipVoteState,
+): void {
+  pubSub.publish(SKIP_VOTE_STATE_TOPIC, roomId, state);
 }

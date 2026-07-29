@@ -7,6 +7,11 @@ import { connectMongo } from "./config/mongo.js";
 import { connectRedis, getRedis } from "./config/redis.js";
 import { getPubSubRedisClients, initPubSub } from "./graphql/pubsub.js";
 import { startSubscriptionServer } from "./graphql/subscriptions.js";
+import { runPendingMigrations } from "./migrations/runner.js";
+import {
+  migrationsSkipReason,
+  shouldRunMigrations,
+} from "./migrations/shouldRun.js";
 
 function attachPool(client: unknown, label: string): void {
   try {
@@ -30,6 +35,18 @@ export async function createHttpServer(): Promise<Server> {
   if (process.env.MONGODB_URI) {
     await connectMongo(process.env.MONGODB_URI);
     attachPool(mongoose.connection.getClient(), "mongodb");
+    if (!shouldRunMigrations()) {
+      console.warn(
+        `[api] skipping Mongo migrations — ${migrationsSkipReason() ?? "disabled"}`,
+      );
+    } else {
+      const result = await runPendingMigrations();
+      if (result.applied.length > 0) {
+        console.log(
+          `[api] applied migrations: ${result.applied.join(", ")}`,
+        );
+      }
+    }
   } else {
     console.warn(
       "[api] MONGODB_URI not set — starting without a database connection",

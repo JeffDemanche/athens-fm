@@ -17,11 +17,16 @@ import {
   roomEventService,
   type RoomEventService,
 } from "./roomEventService.js";
+import {
+  skipVoteService,
+  type SkipVoteService,
+} from "./skipVoteService.js";
 
 export function createParticipantService(
   repo: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
   events: RoomEventService = roomEventService,
+  skipVotes: SkipVoteService = skipVoteService,
 ) {
   async function assertNameAvailable(roomId: string, name: string) {
     const existing = await repo.findByRoomIdAndNameKey(
@@ -37,6 +42,7 @@ export function createParticipantService(
     roomId: string;
     name?: string | null;
     role: ParticipantRole;
+    lastActiveAt?: Date | null;
   }): Promise<Participant> {
     try {
       const participant = await repo.create(input);
@@ -73,6 +79,7 @@ export function createParticipantService(
         roomId: room.id,
         name: null,
         role: ParticipantRole.HOST,
+        lastActiveAt: null,
       });
     },
 
@@ -88,11 +95,37 @@ export function createParticipantService(
       const name = normalizeParticipantName(rawName);
       await assertNameAvailable(room.id, name);
 
-      return createParticipant({
+      const participant = await createParticipant({
         roomId: room.id,
         name,
         role: ParticipantRole.GUEST,
+        lastActiveAt: new Date(),
       });
+      await skipVotes.publishStateForRoom(room.id);
+      return participant;
+    },
+
+    /**
+     * Refresh guest activity so they remain in skip quorum (20m TTL).
+     * Hosts are ignored — they are not part of the listening quorum.
+     */
+    async touchActivity(participantId: string): Promise<Participant> {
+      const existing = await repo.findById(participantId);
+      if (!existing) {
+        throw new AppError("Participant not found", 404);
+      }
+
+      if (existing.role !== ParticipantRole.GUEST) {
+        return existing;
+      }
+
+      const updated = await repo.touchLastActive(existing.id);
+      if (!updated) {
+        throw new AppError("Participant not found", 404);
+      }
+
+      await skipVotes.publishStateForRoom(String(updated.roomId));
+      return updated;
     },
 
     async leave(participantId: string): Promise<boolean> {
@@ -101,8 +134,14 @@ export function createParticipantService(
         throw new AppError("Participant not found", 404);
       }
 
+      const roomId = String(existing.roomId);
       await events.recordLeave(existing);
-      return repo.deleteById(participantId);
+      await skipVotes.clearVotesForParticipant(existing.id);
+      const deleted = await repo.deleteById(participantId);
+      if (deleted) {
+        await skipVotes.publishStateForRoom(roomId);
+      }
+      return deleted;
     },
   };
 }
