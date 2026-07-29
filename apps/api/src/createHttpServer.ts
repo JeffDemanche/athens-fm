@@ -8,6 +8,10 @@ import { connectRedis, getRedis } from "./config/redis.js";
 import { getPubSubRedisClients, initPubSub } from "./graphql/pubsub.js";
 import { startSubscriptionServer } from "./graphql/subscriptions.js";
 import { runPendingMigrations } from "./migrations/runner.js";
+import {
+  migrationsSkipReason,
+  shouldRunMigrations,
+} from "./migrations/shouldRun.js";
 
 function attachPool(client: unknown, label: string): void {
   try {
@@ -31,8 +35,10 @@ export async function createHttpServer(): Promise<Server> {
   if (process.env.MONGODB_URI) {
     await connectMongo(process.env.MONGODB_URI);
     attachPool(mongoose.connection.getClient(), "mongodb");
-    if (process.env.SKIP_DB_MIGRATIONS === "1") {
-      console.warn("[api] SKIP_DB_MIGRATIONS=1 — skipping Mongo migrations");
+    if (!shouldRunMigrations()) {
+      console.warn(
+        `[api] skipping Mongo migrations — ${migrationsSkipReason() ?? "disabled"}`,
+      );
     } else {
       const result = await runPendingMigrations();
       if (result.applied.length > 0) {

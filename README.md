@@ -32,7 +32,7 @@ npm run db:reset    # drop the local Docker Mongo `athens-fm` database
 npm run db:migrate  # apply pending Mongo data migrations (needs MONGODB_URI)
 ```
 
-Vercel production/preview builds run `npm run vercel-build` (web build + migrate). Open the Vite app on `WEB_HOST_PORT` (default http://localhost:5173). HMR and API reload run inside containers with source mounts.
+Vercel Production builds run `npm run vercel-build` (web build + migrate); Preview skips migrations. Open the Vite app on `WEB_HOST_PORT` (default http://localhost:5173). HMR and API reload run inside containers with source mounts.
 
 | Service | Host port |
 |---------|-----------|

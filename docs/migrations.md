@@ -43,18 +43,19 @@ Id format: `YYYYMMDD_NNN_snake_description`.
 
 ## Runtime
 
-- **Vercel deploy (primary)** — `vercel.json` `buildCommand` runs `npm run vercel-build` (`web` build, then `db:migrate`). A failed migration fails the build, so the new deployment does not go live.
-- **On API boot (safety net)** — `createHttpServer()` runs `runPendingMigrations()` after Mongo connects (local Docker, missed deploy step, new instances).
-- **Manual** — `npm run db:migrate` (requires `MONGODB_URI`).
-- Skip either path with `SKIP_DB_MIGRATIONS=1` (emergency only).
+- **Vercel Production deploy (primary)** — `vercel.json` `buildCommand` runs `npm run vercel-build` (`web` build, then `db:migrate`). A failed migration fails the build, so the new deployment does not go live.
+- **Vercel Preview** — migrations are **skipped** when `VERCEL_ENV=preview` (build + boot). Preview apps talk to whatever `MONGODB_URI` is configured for Preview without mutating schema via this runner.
+- **On API boot (safety net)** — `createHttpServer()` runs `runPendingMigrations()` after Mongo connects (local Docker, production instances).
+- **Manual** — `npm run db:migrate` (requires `MONGODB_URI`; still skipped if `VERCEL_ENV=preview` or `SKIP_DB_MIGRATIONS=1`).
+- Also skip with `SKIP_DB_MIGRATIONS=1` (emergency only).
 - Applied ids live in Mongo collection `_migrations`.
 - A short-lived lock in `_migration_locks` prevents concurrent double-apply across instances / build vs boot.
 
 ### Vercel notes
 
-- Build env must include `MONGODB_URI` for that environment (Production / Preview separately). Prefer a **distinct Atlas DB per environment** so preview deploys do not migrate production data.
+- Production build env must include `MONGODB_URI`.
 - Atlas must allow connections from Vercel’s build network (often `0.0.0.0/0` or Atlas’s broader allowlist).
-- Keep migrations short; the build aborts if migrate exits non-zero.
+- Keep migrations short; on Production the build aborts if migrate exits non-zero.
 
 ## Do not
 

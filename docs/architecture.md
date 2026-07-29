@@ -109,7 +109,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 - **Browser membership** (`apps/web/src/lib/membership.ts`): `localStorage` key `athens-fm.active-membership` stores `{ participantId, roomId, roomShortId, role, participantName? }`. One active room per browser — create/join blocked while set; leave clears it. Hosts stay on `/rooms/:id/host` (no participant view).
 - **Display names**: Required for guests only; rejected with a user-facing error when already taken in that room (case-insensitive).
 - **Database**: MongoDB via `MONGODB_URI` (Mongoose 8 + Typegoose).
-- **Migrations**: Forward-only scripts in `apps/api/src/migrations/` (registry + runner). **Primary:** Vercel `buildCommand` → `npm run vercel-build` (web build + `db:migrate`) so a failed migrate blocks the deployment. **Safety net:** API boot after Mongo connect. Manual: `npm run db:migrate`. Tracking `_migrations` / lock `_migration_locks`. Skip with `SKIP_DB_MIGRATIONS=1`. Details: [`docs/migrations.md`](./migrations.md).
+- **Migrations**: Forward-only scripts in `apps/api/src/migrations/` (registry + runner). **Primary:** Vercel Production `buildCommand` → `npm run vercel-build` (web build + `db:migrate`) so a failed migrate blocks the deployment. **Safety net:** API boot after Mongo connect. **Skipped** when `VERCEL_ENV=preview` or `SKIP_DB_MIGRATIONS=1`. Manual: `npm run db:migrate`. Tracking `_migrations` / lock `_migration_locks`. Details: [`docs/migrations.md`](./migrations.md).
 - **Cache/broker**: Redis via `REDIS_URL` (`src/config/redis.ts` for health/general; separate ioredis publisher+subscriber clients for GraphQL pub/sub).
 - **Tests**: Jest + Supertest against `createApp()`; GraphQL Room/Participant/RoomEvent/QueueItem tests use `mongodb-memory-server`.
 
@@ -121,8 +121,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Install: `npm install --include=dev --workspaces -w @athens-fm/web -w @athens-fm/api` (+ root `.npmrc` `include=dev`)
     - Explicit `-w` / `--workspaces` forces both app packages to install (Express detection previously filtered to `@athens-fm/api` only)
   - Web build toolchain (`vite`, `typescript`, Tailwind plugins, React types) lives in `@athens-fm/web` `dependencies`; Jest stays in `devDependencies` and is excluded from production `tsc -b`
-  - Builds `@athens-fm/web` → `apps/web/dist`, then runs `db:migrate` (`npm run vercel-build`). Migrate failure fails the build / blocks the new deployment.
-  - Prefers distinct `MONGODB_URI` per Vercel environment (Production vs Preview) so preview builds do not migrate production data.
+  - Builds `@athens-fm/web` → `apps/web/dist`, then runs `db:migrate` (`npm run vercel-build`). On Production, migrate failure fails the build / blocks the new deployment. On Preview (`VERCEL_ENV=preview`), migrate is a no-op.
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
 - **Serverless entry**: `api/index.ts` exports an `http.Server` from `createHttpServer()` (Express + Apollo HTTP + `graphql-ws` WebSockets). Matches [Vercel Functions WebSockets](https://vercel.com/docs/functions/websockets) (native Node `ws`, not `experimental_upgradeWebSocket`).
@@ -131,7 +130,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - `attachDatabasePool` from `@vercel/functions` is applied to Mongo + Redis clients for Fluid idle pool release
 - **Env vars** (set in Vercel project + local `.env`):
   - `MONGODB_URI` — Atlas (or other) connection string
-  - `SKIP_DB_MIGRATIONS` — set to `1` to skip deploy-time and boot-time migrations (emergency only)
+  - `SKIP_DB_MIGRATIONS` — set to `1` to skip deploy-time and boot-time migrations (emergency only). Preview deploys also skip via `VERCEL_ENV=preview`.
   - `REDIS_URL` — **required for multi-listener production** (e.g. Upstash / Vercel Marketplace Redis); without it, pub/sub is in-memory per instance only
   - `CORS_ORIGIN` — production web origin(s), comma-separated if multiple
   - `PORT` — local/docker only

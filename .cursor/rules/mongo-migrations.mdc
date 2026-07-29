@@ -18,7 +18,7 @@ When changing Typegoose entities / persisted Mongo shape in a **backwards-incomp
 
 ## Deploy path
 
-Vercel `buildCommand` runs `npm run vercel-build` (web build + `db:migrate`). A failing migration fails the deploy. Boot-time migrate remains a safety net. Prefer separate `MONGODB_URI` for Preview vs Production.
+Vercel Production `buildCommand` runs `npm run vercel-build` (web build + `db:migrate`). A failing migration fails the Production deploy. Preview (`VERCEL_ENV=preview`) skips migrate on build and boot. Boot-time migrate remains a Production/local safety net.
 
 ## Breaking vs safe
 

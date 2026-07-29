@@ -3,10 +3,13 @@ import "reflect-metadata";
 
 import { connectMongo, disconnectMongo } from "../config/mongo.js";
 import { runPendingMigrations } from "./runner.js";
+import { migrationsSkipReason, shouldRunMigrations } from "./shouldRun.js";
 
 async function main(): Promise<void> {
-  if (process.env.SKIP_DB_MIGRATIONS === "1") {
-    console.warn("[migrate] SKIP_DB_MIGRATIONS=1 — skipping");
+  if (!shouldRunMigrations()) {
+    console.warn(
+      `[migrate] skipping — ${migrationsSkipReason() ?? "disabled"}`,
+    );
     return;
   }
 
