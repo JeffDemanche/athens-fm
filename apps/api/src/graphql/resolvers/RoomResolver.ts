@@ -54,4 +54,18 @@ export class RoomResolver {
   ): Promise<QueueItem[]> {
     return context.services.queueItem.listByRoom(room.id);
   }
+
+  /** Soft-popped track currently playing on the host desk. */
+  @FieldResolver(() => QueueItem, { nullable: true })
+  async nowPlaying(
+    @Root() room: Room,
+    @Ctx() context: GraphQLContext,
+  ): Promise<QueueItem | null> {
+    if (!room.nowPlayingQueueItemId) {
+      return null;
+    }
+    return context.services.queueItem.getById(
+      String(room.nowPlayingQueueItemId),
+    );
+  }
 }

@@ -41,6 +41,10 @@ export function createQueueItemService(
       return repo.findActiveByRoomId(room.id);
     },
 
+    async getById(id: string): Promise<QueueItem | null> {
+      return repo.findById(id);
+    },
+
     async add(input: {
       participantId: string;
       type: QueueItemType;

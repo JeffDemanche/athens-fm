@@ -4,6 +4,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { PageShell } from "@/composites/page-shell";
 import { RoomQueryState } from "@/composites/room-query-state";
 import { AddQueueItemForm } from "@/features/queue/add-queue-item-form";
+import { NowPlayingThumbnail } from "@/features/queue/now-playing-thumbnail";
 import { ParticipantQueue } from "@/features/queue/participant-queue";
 import { RoomDetail } from "@/features/room-detail/room-detail";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
@@ -159,6 +160,7 @@ export function ParticipantRoomView() {
         <RoomDetail roomId={roomId} roleLabel="Listening">
           {(room) => (
             <Stack gap="md">
+              <NowPlayingThumbnail roomId={room.id} />
               <SkipVoteToggle
                 roomId={room.id}
                 participantId={existing.participantId}

@@ -29,6 +29,18 @@ export const GET_QUEUE_ITEMS = gql`
   ${QUEUE_ITEM_FIELDS}
 `;
 
+export const GET_NOW_PLAYING = gql`
+  query GetNowPlaying($roomId: ID!) {
+    room(id: $roomId) {
+      id
+      nowPlaying {
+        ...QueueItemFields
+      }
+    }
+  }
+  ${QUEUE_ITEM_FIELDS}
+`;
+
 export const MY_QUEUE_VOTES = gql`
   query MyQueueVotes($roomId: ID!, $participantId: ID!) {
     myQueueVotes(roomId: $roomId, participantId: $participantId) {

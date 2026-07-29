@@ -303,6 +303,37 @@ describe("GraphQL QueueItem API", () => {
         finished: false,
       },
     ]);
+
+    const nowPlayingResponse = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          query NowPlaying($id: ID!) {
+            room(id: $id) {
+              nowPlayingQueueItemId
+              nowPlaying {
+                id
+                externalId
+                title
+                thumbnailUrl
+                finished
+              }
+            }
+          }
+        `,
+        variables: { id: created.room.id },
+      });
+    expect(nowPlayingResponse.body.errors).toBeUndefined();
+    expect(nowPlayingResponse.body.data.room).toEqual({
+      nowPlayingQueueItemId: itemId,
+      nowPlaying: {
+        id: itemId,
+        externalId: "dQw4w9WgXcQ",
+        title: "Never Gonna Give You Up",
+        thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        finished: true,
+      },
+    });
   });
 
   it("rejects invalid youtube media refs", async () => {
