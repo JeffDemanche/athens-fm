@@ -150,7 +150,7 @@ export function HostRoomView() {
           }
           title={nowPlaying?.title ?? null}
           skipVoteCount={skipState?.voteCount ?? 0}
-          skipParticipantCount={skipState?.participantCount ?? 0}
+          skipThreshold={skipState?.threshold ?? 0}
           skipPassed={skipState?.passed ?? false}
           onEnded={handleTrackEnded}
         />

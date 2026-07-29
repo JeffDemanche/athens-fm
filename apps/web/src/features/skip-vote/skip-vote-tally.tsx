@@ -3,7 +3,8 @@ import { Text } from "@/primitives/text";
 
 type SkipVoteTallyProps = {
   voteCount: number;
-  participantCount: number;
+  /** Votes needed for quorum (simple majority). */
+  threshold: number;
   passed?: boolean;
   className?: string;
 };
@@ -11,7 +12,7 @@ type SkipVoteTallyProps = {
 /** Prominent skip-vote fraction for the Now Playing header. */
 export function SkipVoteTally({
   voteCount,
-  participantCount,
+  threshold,
   passed = false,
   className,
 }: SkipVoteTallyProps) {
@@ -25,7 +26,7 @@ export function SkipVoteTally({
         className,
       )}
       aria-live="polite"
-      aria-label={`${voteCount} of ${participantCount} votes to skip`}
+      aria-label={`${voteCount} of ${threshold} votes needed to skip`}
     >
       <Text
         as="p"
@@ -44,7 +45,7 @@ export function SkipVoteTally({
       >
         {voteCount}
         <span className="text-lg font-medium text-muted-foreground">
-          /{participantCount}
+          /{threshold}
         </span>
       </Text>
     </div>

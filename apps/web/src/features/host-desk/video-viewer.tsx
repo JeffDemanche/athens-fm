@@ -10,7 +10,7 @@ type VideoViewerProps = {
   media?: EmbeddableMedia | null;
   title?: string | null;
   skipVoteCount?: number;
-  skipParticipantCount?: number;
+  skipThreshold?: number;
   skipPassed?: boolean;
   onEnded?: () => void;
 };
@@ -20,7 +20,7 @@ export function VideoViewer({
   media = null,
   title = null,
   skipVoteCount = 0,
-  skipParticipantCount = 0,
+  skipThreshold = 0,
   skipPassed = false,
   onEnded,
 }: VideoViewerProps) {
@@ -37,7 +37,7 @@ export function VideoViewer({
         media ? (
           <SkipVoteTally
             voteCount={skipVoteCount}
-            participantCount={skipParticipantCount}
+            threshold={skipThreshold}
             passed={skipPassed}
           />
         ) : null
