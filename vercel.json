@@ -13,7 +13,7 @@
   "crons": [
     {
       "path": "/api/internal/sweep-inactive",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "rewrites": [

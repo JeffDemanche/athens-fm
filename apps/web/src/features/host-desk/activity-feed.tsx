@@ -78,7 +78,10 @@ function formatEventTime(iso: string): string {
 
 export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
   const listRef = useRef<HTMLUListElement>(null);
-  const { data, loading } = useQuery<GetRoomEventsResult, RoomIdVars>(
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
+
+  const { data, loading, refetch } = useQuery<GetRoomEventsResult, RoomIdVars>(
     GET_ROOM_EVENTS,
     {
       variables: { roomId },
@@ -97,7 +100,7 @@ export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
       }
 
       client.cache.updateQuery<GetRoomEventsResult, RoomIdVars>(
-        { query: GET_ROOM_EVENTS, variables: { roomId } },
+        { query: GET_ROOM_EVENTS, variables: { roomId: roomIdRef.current } },
         (existing) => {
           const current = existing?.roomEvents ?? [];
           if (current.some((item) => item.id === event.id)) {
@@ -106,6 +109,11 @@ export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
           return { roomEvents: [...current, event] };
         },
       );
+    },
+    onError: () => {
+      if (roomIdRef.current) {
+        void refetch();
+      }
     },
   });
 
