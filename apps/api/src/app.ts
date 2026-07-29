@@ -7,6 +7,7 @@ import { createGraphQLContext } from "./graphql/context.js";
 import { createApolloServer } from "./graphql/server.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { healthRouter } from "./routes/health.js";
+import { internalRouter } from "./routes/internal.js";
 
 export async function createApp() {
   const app = express();
@@ -26,6 +27,7 @@ export async function createApp() {
   });
 
   app.use("/api/health", healthRouter);
+  app.use("/api/internal", internalRouter);
 
   app.use(
     "/api/graphql",

@@ -12,6 +12,7 @@ import {
   migrationsSkipReason,
   shouldRunMigrations,
 } from "./migrations/shouldRun.js";
+import { startActivitySweepLoop } from "./services/activitySweepLoop.js";
 
 function attachPool(client: unknown, label: string): void {
   try {
@@ -77,5 +78,10 @@ export async function createHttpServer(): Promise<Server> {
   const app = await createApp();
   const httpServer = createServer(app);
   await startSubscriptionServer(httpServer);
+
+  if (process.env.MONGODB_URI) {
+    startActivitySweepLoop();
+  }
+
   return httpServer;
 }

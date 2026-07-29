@@ -83,6 +83,20 @@ function createFakeParticipants(
     async countActiveGuests(roomId, since = activeSince()) {
       return (await this.findActiveGuestIds(roomId, since)).length;
     },
+    async findRoomIdsWithGuestsExpiredBetween(expiredAfter, expiredBefore) {
+      const roomIds = new Set<string>();
+      for (const participant of participants) {
+        if (
+          participant.role === ParticipantRole.GUEST &&
+          participant.lastActiveAt != null &&
+          participant.lastActiveAt >= expiredAfter &&
+          participant.lastActiveAt < expiredBefore
+        ) {
+          roomIds.add(String(participant.roomId));
+        }
+      }
+      return [...roomIds];
+    },
     async create(input) {
       const now = new Date();
       const name = input.name ?? null;
