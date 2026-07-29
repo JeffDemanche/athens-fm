@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "fluid": true,
-  "buildCommand": "npm run build -w @athens-fm/web",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "apps/web/dist",
   "installCommand": "npm install --include=dev --workspaces -w @athens-fm/web -w @athens-fm/api",
   "framework": null,

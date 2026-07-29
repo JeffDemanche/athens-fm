@@ -1,0 +1,32 @@
+---
+description: Require tested Mongo migrations when Typegoose models change incompatibly
+globs: apps/api/src/entities/**/*.ts,apps/api/src/migrations/**/*.ts
+alwaysApply: false
+---
+
+# Mongo model changes → migrations
+
+When changing Typegoose entities / persisted Mongo shape in a **backwards-incompatible** way, ship a tested migration in the same change.
+
+## Required
+
+1. Read `docs/migrations.md`.
+2. Add `apps/api/src/migrations/YYYYMMDD_NNN_snake_description.ts` with an idempotent `up`.
+3. Append it to `apps/api/src/migrations/registry.ts` (do not reorder or remove applied ids).
+4. Add a Jest test that seeds **old-shape** docs, runs `runPendingMigrations`, asserts **new shape**, and confirms re-run is a no-op.
+5. Update `docs/architecture.md` only if migration mechanics / env / scripts change.
+
+## Deploy path
+
+Vercel `buildCommand` runs `npm run vercel-build` (web build + `db:migrate`). A failing migration fails the deploy. Boot-time migrate remains a safety net. Prefer separate `MONGODB_URI` for Preview vs Production.
+
+## Breaking vs safe
+
+- **Needs migration**: rename/remove field, type/meaning change, new required field without a default that covers old docs, enum/value backfills.
+- **Usually no migration**: additive optional field with a safe default.
+
+## Do not
+
+- Reset or drop DBs to “fix” schema drift.
+- Edit `up` for an already-applied migration — add a new one.
+- Call GraphQL/services from migrations — use `ctx.db`.
