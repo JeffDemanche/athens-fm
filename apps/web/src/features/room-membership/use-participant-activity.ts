@@ -15,11 +15,16 @@ type TouchResult = {
 /**
  * Keeps the guest in the active set: touches on mount and on any pointer/key
  * interaction with the participant view (throttled).
+ *
+ * Listeners and the mutation function are held in refs so this hook does not
+ * re-bind or force-touch on unrelated re-renders.
  */
 export function useParticipantActivity(participantId: string | null) {
   const [touch] = useMutation<TouchResult, { participantId: string }>(
     TOUCH_PARTICIPANT_ACTIVITY,
   );
+  const touchRef = useRef(touch);
+  touchRef.current = touch;
   const lastTouchRef = useRef(0);
   const participantIdRef = useRef(participantId);
   participantIdRef.current = participantId;
@@ -39,9 +44,10 @@ export function useParticipantActivity(participantId: string | null) {
         return;
       }
       lastTouchRef.current = now;
-      void touch({ variables: { participantId: id } });
+      void touchRef.current({ variables: { participantId: id } });
     };
 
+    // Mount / participant change — establish activity once.
     sendTouch(true);
 
     const onInteract = () => {
@@ -52,6 +58,9 @@ export function useParticipantActivity(participantId: string | null) {
     window.addEventListener("keydown", onInteract);
     window.addEventListener("scroll", onInteract, { passive: true });
 
+    // Returning to the tab should refresh activity, but never bypass the
+    // throttle — a forced touch here was republishing skip state on every
+    // focus and could tear down the host player via cascading refetches.
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         sendTouch(false);
@@ -65,5 +74,5 @@ export function useParticipantActivity(participantId: string | null) {
       window.removeEventListener("scroll", onInteract);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [participantId, touch]);
+  }, [participantId]);
 }

@@ -1,5 +1,6 @@
 import type { Participant } from "../entities/Participant.js";
 import { ParticipantRole } from "../entities/Participant.js";
+import { activeSince } from "../lib/activeParticipant.js";
 import {
   DUPLICATE_PARTICIPANT_NAME_MESSAGE,
   isDuplicateParticipantNameError,
@@ -108,6 +109,8 @@ export function createParticipantService(
     /**
      * Refresh guest activity so they remain in skip quorum (20m TTL).
      * Hosts are ignored — they are not part of the listening quorum.
+     * Skip-state is only republished when the guest newly enters the active
+     * set; heartbeat touches for already-active guests stay quiet.
      */
     async touchActivity(participantId: string): Promise<Participant> {
       const existing = await repo.findById(participantId);
@@ -119,12 +122,19 @@ export function createParticipantService(
         return existing;
       }
 
+      const since = activeSince();
+      const wasActive =
+        existing.lastActiveAt != null &&
+        existing.lastActiveAt.getTime() >= since.getTime();
+
       const updated = await repo.touchLastActive(existing.id);
       if (!updated) {
         throw new AppError("Participant not found", 404);
       }
 
-      await skipVotes.publishStateForRoom(String(updated.roomId));
+      if (!wasActive) {
+        await skipVotes.publishStateForRoom(String(updated.roomId));
+      }
       return updated;
     },
 

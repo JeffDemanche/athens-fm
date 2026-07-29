@@ -28,6 +28,9 @@ export function HostRoomView() {
     GET_ROOM,
     {
       variables: { id: roomId },
+      // Keep the desk mounted across visibility/WS refetches — a loading
+      // flicker would unmount the YouTube player and restart the track.
+      nextFetchPolicy: "cache-first",
     },
   );
 
@@ -81,13 +84,16 @@ export function HostRoomView() {
     setNowPlaying(null);
   }, [skipState?.passed, skipState?.queueItemId, nowPlaying]);
 
-  if (loading || error || !room) {
+  // Only block the desk when we have nothing to show. Refetches set
+  // `loading` while cached `room` remains — unmounting here would destroy
+  // the media player and reload the video.
+  if (!room) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-16">
         <RoomQueryState
           loading={loading}
           errorMessage={error?.message}
-          missing={!loading && !error && !room}
+          missing={!loading && !error}
         />
       </main>
     );

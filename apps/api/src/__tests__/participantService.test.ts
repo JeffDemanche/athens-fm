@@ -121,14 +121,19 @@ function createFakeParticipants(
   };
 }
 
-function createFakeSkipVotes(): SkipVoteService {
+function createFakeSkipVotes(): SkipVoteService & {
+  publishCalls: string[];
+} {
+  const publishCalls: string[] = [];
   return {
+    publishCalls,
     async getState() {
       throw new Error("not used");
     },
-    async publishStateForRoom() {
+    async publishStateForRoom(roomId) {
+      publishCalls.push(roomId);
       return {
-        roomId: "room_1",
+        roomId,
         queueItemId: null,
         voteCount: 0,
         participantCount: 0,
@@ -302,5 +307,32 @@ describe("participantService", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     const touched = await service.touchActivity(guest.id);
     expect(touched.lastActiveAt!.getTime()).toBeGreaterThan(earlier.getTime());
+  });
+
+  it("touchActivity only republishes skip state when a guest becomes active", async () => {
+    const participants = createFakeParticipants();
+    const skipVotes = createFakeSkipVotes();
+    const service = createParticipantService(
+      participants,
+      createFakeRooms([room]),
+      createFakeEvents(),
+      skipVotes,
+    );
+
+    const guest = await service.joinAsGuest("K7M2P", "Maya");
+    // joinAsGuest already published once.
+    expect(skipVotes.publishCalls).toEqual(["room_1"]);
+
+    await service.touchActivity(guest.id);
+    expect(skipVotes.publishCalls).toEqual(["room_1"]);
+
+    // Simulate falling out of the active TTL.
+    await participants.touchLastActive(
+      guest.id,
+      new Date(Date.now() - 21 * 60 * 1000),
+    );
+
+    await service.touchActivity(guest.id);
+    expect(skipVotes.publishCalls).toEqual(["room_1", "room_1"]);
   });
 });

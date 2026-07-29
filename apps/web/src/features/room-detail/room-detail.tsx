@@ -25,15 +25,17 @@ export function RoomDetail({ roomId, roleLabel, children }: RoomDetailProps) {
     GET_ROOM,
     {
       variables: { id: roomId },
+      nextFetchPolicy: "cache-first",
     },
   );
 
-  if (loading || error || !data?.room) {
+  // Keep children mounted across visibility/WS refetches when cache has data.
+  if (!data?.room) {
     return (
       <RoomQueryState
         loading={loading}
         errorMessage={error?.message}
-        missing={!loading && !error && !data?.room}
+        missing={!loading && !error}
       />
     );
   }
