@@ -42,6 +42,33 @@ export const skipVoteRepository = {
     return SkipVoteModel.countDocuments({ roomId }).exec();
   },
 
+  async countByRoomAndParticipants(
+    roomId: string,
+    participantIds: string[],
+  ): Promise<number> {
+    if (!mongoose.isValidObjectId(roomId) || participantIds.length === 0) {
+      return 0;
+    }
+    const validIds = participantIds.filter((id) =>
+      mongoose.isValidObjectId(id),
+    );
+    if (validIds.length === 0) {
+      return 0;
+    }
+    return SkipVoteModel.countDocuments({
+      roomId,
+      participantId: { $in: validIds },
+    }).exec();
+  },
+
+  async deleteByParticipant(participantId: string): Promise<number> {
+    if (!mongoose.isValidObjectId(participantId)) {
+      return 0;
+    }
+    const result = await SkipVoteModel.deleteMany({ participantId }).exec();
+    return result.deletedCount ?? 0;
+  },
+
   async upsert(input: {
     roomId: string;
     queueItemId: string;

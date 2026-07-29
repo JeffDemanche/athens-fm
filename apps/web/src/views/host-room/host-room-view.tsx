@@ -152,6 +152,7 @@ export function HostRoomView() {
           skipVoteCount={skipState?.voteCount ?? 0}
           skipThreshold={skipState?.threshold ?? 0}
           skipPassed={skipState?.passed ?? false}
+          activeParticipantCount={skipState?.participantCount ?? 0}
           onEnded={handleTrackEnded}
         />
         <ActivityFeed roomId={room.id} className="min-h-[12rem]" />

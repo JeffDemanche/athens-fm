@@ -4,10 +4,12 @@ import { ParticipantRole } from "../entities/Participant.js";
 import type { Room } from "../entities/Room.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
 import { RoomEventType } from "../entities/RoomEvent.js";
+import { activeSince } from "../lib/activeParticipant.js";
 import { participantNameKey } from "../lib/participantName.js";
 import type { ParticipantRepository } from "../repositories/participantRepository.js";
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import type { RoomEventService } from "../services/roomEventService.js";
+import type { SkipVoteService } from "../services/skipVoteService.js";
 
 function createFakeRooms(seed: Room[] = []): RoomRepository {
   const rooms = [...seed];
@@ -67,6 +69,20 @@ function createFakeParticipants(
         ) ?? null
       );
     },
+    async findActiveGuestIds(roomId, since = activeSince()) {
+      return participants
+        .filter(
+          (participant) =>
+            participant.roomId === roomId &&
+            participant.role === ParticipantRole.GUEST &&
+            participant.lastActiveAt != null &&
+            participant.lastActiveAt >= since,
+        )
+        .map((participant) => participant.id);
+    },
+    async countActiveGuests(roomId, since = activeSince()) {
+      return (await this.findActiveGuestIds(roomId, since)).length;
+    },
     async create(input) {
       const now = new Date();
       const name = input.name ?? null;
@@ -76,10 +92,20 @@ function createFakeParticipants(
         name,
         nameKey: name ? participantNameKey(name) : null,
         role: input.role,
+        lastActiveAt: input.lastActiveAt ?? null,
         createdAt: now,
         updatedAt: now,
       };
       participants.push(participant);
+      return participant;
+    },
+    async touchLastActive(id, at = new Date()) {
+      const participant = participants.find((entry) => entry.id === id);
+      if (!participant) {
+        return null;
+      }
+      participant.lastActiveAt = at;
+      participant.updatedAt = at;
       return participant;
     },
     async deleteById(id) {
@@ -92,6 +118,35 @@ function createFakeParticipants(
       participants.splice(index, 1);
       return true;
     },
+  };
+}
+
+function createFakeSkipVotes(): SkipVoteService {
+  return {
+    async getState() {
+      throw new Error("not used");
+    },
+    async publishStateForRoom() {
+      return {
+        roomId: "room_1",
+        queueItemId: null,
+        voteCount: 0,
+        participantCount: 0,
+        threshold: 0,
+        passed: false,
+        viewerHasVoted: false,
+      };
+    },
+    async resetForNowPlaying() {
+      throw new Error("not used");
+    },
+    async clearNowPlaying() {
+      throw new Error("not used");
+    },
+    async toggle() {
+      throw new Error("not used");
+    },
+    async clearVotesForParticipant() {},
   };
 }
 
@@ -151,6 +206,7 @@ describe("participantService", () => {
       createFakeParticipants(),
       createFakeRooms([room]),
       events,
+      createFakeSkipVotes(),
     );
 
     const host = await service.joinAsHost("room_1");
@@ -158,6 +214,7 @@ describe("participantService", () => {
       roomId: "room_1",
       role: ParticipantRole.HOST,
       name: null,
+      lastActiveAt: null,
     });
     expect(events.events[0]).toMatchObject({
       type: RoomEventType.JOINED,
@@ -172,6 +229,7 @@ describe("participantService", () => {
       createFakeParticipants(),
       createFakeRooms([room]),
       events,
+      createFakeSkipVotes(),
     );
 
     const guest = await service.joinAsGuest("k7m2p", "Maya");
@@ -180,6 +238,7 @@ describe("participantService", () => {
       role: ParticipantRole.GUEST,
       name: "Maya",
     });
+    expect(guest.lastActiveAt).toBeInstanceOf(Date);
     expect(events.events).toEqual([
       expect.objectContaining({
         type: RoomEventType.JOINED,
@@ -206,6 +265,7 @@ describe("participantService", () => {
       createFakeParticipants(),
       createFakeRooms([room]),
       createFakeEvents(),
+      createFakeSkipVotes(),
     );
 
     await service.joinAsGuest("K7M2P", "Maya");
@@ -220,11 +280,27 @@ describe("participantService", () => {
       createFakeParticipants(),
       createFakeRooms([]),
       createFakeEvents(),
+      createFakeSkipVotes(),
     );
 
     await expect(service.joinAsGuest("MISSING", "Maya")).rejects.toMatchObject({
       message: "Room not found",
       statusCode: 404,
     });
+  });
+
+  it("touchActivity refreshes guest lastActiveAt", async () => {
+    const service = createParticipantService(
+      createFakeParticipants(),
+      createFakeRooms([room]),
+      createFakeEvents(),
+      createFakeSkipVotes(),
+    );
+
+    const guest = await service.joinAsGuest("K7M2P", "Maya");
+    const earlier = guest.lastActiveAt!;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const touched = await service.touchActivity(guest.id);
+    expect(touched.lastActiveAt!.getTime()).toBeGreaterThan(earlier.getTime());
   });
 });

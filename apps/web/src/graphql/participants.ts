@@ -23,3 +23,12 @@ export const LEAVE_ROOM = gql`
     leaveRoom(participantId: $participantId)
   }
 `;
+
+export const TOUCH_PARTICIPANT_ACTIVITY = gql`
+  mutation TouchParticipantActivity($participantId: ID!) {
+    touchParticipantActivity(participantId: $participantId) {
+      id
+      lastActiveAt
+    }
+  }
+`;

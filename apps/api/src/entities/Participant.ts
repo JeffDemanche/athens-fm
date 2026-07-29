@@ -44,6 +44,10 @@ export const PARTICIPANT_NAME_MAX_LENGTH = 40;
     partialFilterExpression: { nameKey: { $type: "string" } },
   },
 )
+@index(
+  { roomId: 1, role: 1, lastActiveAt: -1 },
+  { name: "participants_roomId_role_lastActiveAt" },
+)
 export class Participant {
   @Field(() => ID)
   id!: string;
@@ -75,6 +79,14 @@ export class Participant {
     type: String,
   })
   role!: ParticipantRole;
+
+  /**
+   * Last participant-view interaction. Guests without a recent touch fall out
+   * of skip quorum after the active TTL. Hosts do not use this field.
+   */
+  @Field(() => GraphQLISODateTime, { nullable: true })
+  @prop({ required: false, type: Date })
+  lastActiveAt?: Date | null;
 
   @Field(() => GraphQLISODateTime)
   createdAt!: Date;

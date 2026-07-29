@@ -72,7 +72,9 @@ export function createQueueItemService(
         thumbnailUrl,
       });
 
+      await participants.touchLastActive(participant.id);
       publishQueueItemAdded(room.id, item);
+      await skipVotes.publishStateForRoom(room.id);
       return item;
     },
 

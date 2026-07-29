@@ -321,4 +321,55 @@ describe("GraphQL SkipVote API", () => {
       passed: false,
     });
   });
+
+  it("excludes inactive guests from skip quorum and vote count", async () => {
+    const created = await createRoom("Skip Desk");
+    const guestA = await joinGuest(created.room.shortId, "Maya");
+    const guestB = await joinGuest(created.room.shortId, "Leo");
+
+    const itemId = await addItem(guestA, "dQw4w9WgXcQ");
+    await popItem(itemId);
+    await toggleSkip(guestA);
+    await toggleSkip(guestB);
+
+    let state = await skipState(created.room.id, guestA);
+    expect(state.participantCount).toBe(2);
+    expect(state.voteCount).toBe(2);
+    expect(state.passed).toBe(true);
+
+    // Age guest B past the active TTL.
+    await mongoose.connection.collection("participants").updateOne(
+      { _id: new mongoose.Types.ObjectId(guestB) },
+      {
+        $set: {
+          lastActiveAt: new Date(Date.now() - 21 * 60 * 1000),
+        },
+      },
+    );
+
+    state = await skipState(created.room.id, guestA);
+    expect(state.participantCount).toBe(1);
+    expect(state.threshold).toBe(1);
+    expect(state.voteCount).toBe(1);
+    expect(state.passed).toBe(true);
+
+    const touch = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Touch($participantId: ID!) {
+            touchParticipantActivity(participantId: $participantId) {
+              id
+              lastActiveAt
+            }
+          }
+        `,
+        variables: { participantId: guestB },
+      });
+    expect(touch.body.errors).toBeUndefined();
+
+    state = await skipState(created.room.id, guestA);
+    expect(state.participantCount).toBe(2);
+    expect(state.voteCount).toBe(2);
+  });
 });

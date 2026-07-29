@@ -1,4 +1,3 @@
-import { ParticipantRole } from "../entities/Participant.js";
 import type { SkipVoteState } from "../entities/SkipVoteState.js";
 import { publishSkipVoteStateUpdated } from "../graphql/pubsub.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -24,14 +23,6 @@ export function createSkipVoteService(
   participants: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
 ) {
-  async function activeParticipantCount(roomId: string): Promise<number> {
-    // For now: every guest in the room is active. Hosts are desk operators and
-    // are excluded from skip quorum. A follow-up will filter by recent activity.
-    const members = await participants.findByRoomId(roomId);
-    return members.filter((member) => member.role === ParticipantRole.GUEST)
-      .length;
-  }
-
   async function buildState(
     roomId: string,
     viewerParticipantId?: string | null,
@@ -44,10 +35,12 @@ export function createSkipVoteService(
     const queueItemId = room.nowPlayingQueueItemId
       ? String(room.nowPlayingQueueItemId)
       : null;
-    const [voteCount, participantCount] = await Promise.all([
-      queueItemId ? skipVotes.countByRoom(room.id) : Promise.resolve(0),
-      activeParticipantCount(room.id),
-    ]);
+    const activeGuestIds = await participants.findActiveGuestIds(room.id);
+    const participantCount = activeGuestIds.length;
+    const voteCount =
+      queueItemId && activeGuestIds.length > 0
+        ? await skipVotes.countByRoomAndParticipants(room.id, activeGuestIds)
+        : 0;
     const threshold = skipThreshold(participantCount);
     const passed = threshold > 0 && voteCount >= threshold;
 
@@ -57,7 +50,7 @@ export function createSkipVoteService(
         room.id,
         viewerParticipantId,
       );
-      viewerHasVoted = Boolean(vote);
+      viewerHasVoted = Boolean(vote) && activeGuestIds.includes(viewerParticipantId);
     }
 
     return {
@@ -81,6 +74,13 @@ export function createSkipVoteService(
         throw new AppError("Room not found", 404);
       }
       return buildState(room.id, viewerParticipantId);
+    },
+
+    /** Recompute and broadcast tally (join / leave / activity changes). */
+    async publishStateForRoom(roomId: string): Promise<SkipVoteState> {
+      const state = await buildState(roomId);
+      publishSkipVoteStateUpdated(roomId, state);
+      return state;
     },
 
     /**
@@ -113,7 +113,7 @@ export function createSkipVoteService(
 
     /**
      * Toggle the participant's skip vote for the current now-playing item.
-     * Same toggle again clears the vote.
+     * Same toggle again clears the vote. Refreshes activity.
      */
     async toggle(participantId: string): Promise<SkipVoteState> {
       const participant = await participants.findById(participantId);
@@ -134,6 +134,8 @@ export function createSkipVoteService(
         throw new AppError("Nothing is playing to skip", 400);
       }
 
+      await participants.touchLastActive(participant.id);
+
       const existing = await skipVotes.findByRoomAndParticipant(
         room.id,
         participant.id,
@@ -152,6 +154,10 @@ export function createSkipVoteService(
       const state = await buildState(room.id, participant.id);
       publishSkipVoteStateUpdated(room.id, state);
       return state;
+    },
+
+    async clearVotesForParticipant(participantId: string): Promise<void> {
+      await skipVotes.deleteByParticipant(participantId);
     },
   };
 }
