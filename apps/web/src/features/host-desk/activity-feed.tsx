@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useSubscription } from "@apollo/client/react";
 import { DeskPanel } from "@/composites/desk-panel";
 import {
@@ -26,14 +26,19 @@ type ActivityFeedProps = {
   className?: string;
 };
 
-function eventCopy(event: RoomEventFields): string {
-  const actor =
+function eventCopy(event: RoomEventFields): ReactNode {
+  const actorLabel =
     event.participantName ??
     (event.participantRole === "HOST" ? "Host" : "Someone");
+  const actor = event.participantName ? (
+    <span className="font-semibold">{actorLabel}</span>
+  ) : (
+    actorLabel
+  );
   if (event.type === "JOINED") {
-    return `${actor} joined the room`;
+    return <>{actor} joined the room</>;
   }
-  return `${actor} left the room`;
+  return <>{actor} left the room</>;
 }
 
 function formatEventTime(iso: string): string {
