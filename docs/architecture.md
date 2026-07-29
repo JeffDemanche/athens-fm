@@ -3,7 +3,7 @@
 Living record of product concepts, technical architecture, and agent-facing conventions.
 Agents must **read this before making structural changes** and **update it when those details change**.
 
-Last updated: 2026-07-22
+Last updated: 2026-07-28
 
 ---
 
@@ -72,6 +72,8 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
 - **GraphQL client**: Apollo Client → `VITE_GRAPHQL_URL` (default `/api/graphql`)
   - HTTP for queries/mutations; WebSocket (`graphql-ws`) for subscriptions on the same path
   - Client retries WS reconnects indefinitely with exponential backoff (Vercel Functions close sockets at `maxDuration`)
+  - On WS reconnect (`wasRetry`) and when the tab becomes visible again, refetch active queries — pub/sub events during a disconnect are not replayed
+  - Queue hooks use `nextFetchPolicy: cache-first` so remounts do not overwrite live subscription cache writes
 - **API proxy**: `VITE_API_PROXY_TARGET` (default `http://localhost:3001`; Docker sets `http://api:3001`). Proxies `/api/*` including GraphQL HTTP + WS (`ws: true` in Vite).
 - **Tests**: Jest + Testing Library (`jest.config.ts`, `jest.setup.ts`).
 - **UI convention**: Prefer shadcn components; add with `npx shadcn@latest add <name>` from `apps/web`.

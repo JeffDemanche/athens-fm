@@ -54,6 +54,7 @@ export function ActivityFeed({ roomId, className }: ActivityFeedProps) {
     {
       variables: { roomId },
       skip: !roomId,
+      nextFetchPolicy: "cache-first",
     },
   );
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useSubscription } from "@apollo/client/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   GET_QUEUE_ITEMS,
   MY_QUEUE_VOTES,
@@ -122,22 +122,35 @@ export function useRoomQueue(
   viewerParticipantId?: string | null,
 ) {
   const viewerId = viewerParticipantId ?? null;
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
 
-  const { data, loading, error } = useQuery<GetQueueItemsResult, RoomIdVars>(
-    GET_QUEUE_ITEMS,
-    {
-      variables: { roomId },
-      skip: !roomId,
-    },
-  );
+  const { data, loading, error, refetch } = useQuery<
+    GetQueueItemsResult,
+    RoomIdVars
+  >(GET_QUEUE_ITEMS, {
+    variables: { roomId },
+    skip: !roomId,
+    // After the first network result, prefer cache so subscription writes are
+    // not overwritten by remount-triggered cache-and-network fetches.
+    nextFetchPolicy: "cache-first",
+  });
 
   const { data: votesData } = useQuery<MyQueueVotesResult, MyVotesVars>(
     MY_QUEUE_VOTES,
     {
       variables: { roomId, participantId: viewerId ?? "" },
       skip: !roomId || !viewerId,
+      nextFetchPolicy: "cache-first",
     },
   );
+
+  const refetchQueue = useCallback(() => {
+    if (!roomIdRef.current) {
+      return;
+    }
+    void refetch();
+  }, [refetch]);
 
   useSubscription<QueueItemAddedResult, RoomIdVars>(QUEUE_ITEM_ADDED, {
     variables: { roomId },
@@ -147,8 +160,9 @@ export function useRoomQueue(
       if (!item || item.finished) {
         return;
       }
-      upsertItemInCache(client.cache, roomId, item);
+      upsertItemInCache(client.cache, roomIdRef.current, item);
     },
+    onError: refetchQueue,
   });
 
   useSubscription<QueueItemPoppedResult, RoomIdVars>(QUEUE_ITEM_POPPED, {
@@ -159,8 +173,9 @@ export function useRoomQueue(
       if (!item) {
         return;
       }
-      removeItemFromCache(client.cache, roomId, item.id);
+      removeItemFromCache(client.cache, roomIdRef.current, item.id);
     },
+    onError: refetchQueue,
   });
 
   useSubscription<QueueItemUpdatedResult, RoomIdVars>(QUEUE_ITEM_UPDATED, {
@@ -171,8 +186,9 @@ export function useRoomQueue(
       if (!item || item.finished) {
         return;
       }
-      upsertItemInCache(client.cache, roomId, item);
+      upsertItemInCache(client.cache, roomIdRef.current, item);
     },
+    onError: refetchQueue,
   });
 
   const [popQueueItemMutation] = useMutation<
