@@ -6,6 +6,7 @@ import {
   prop,
   type ReturnModelType,
 } from "@typegoose/typegoose";
+import { Types } from "mongoose";
 import { GraphQLISODateTime, ID, ObjectType, Field } from "type-graphql";
 import { SHORT_ID_LENGTH } from "../lib/shortId.js";
 
@@ -42,6 +43,14 @@ export class Room {
     type: String,
   })
   name!: string;
+
+  /**
+   * Soft-popped queue item currently playing on the host desk.
+   * Optional / additive — existing rooms without this field are idle.
+   */
+  @Field(() => ID, { nullable: true })
+  @prop({ required: false, type: () => Types.ObjectId })
+  nowPlayingQueueItemId?: Types.ObjectId | string | null;
 
   @Field(() => GraphQLISODateTime)
   createdAt!: Date;

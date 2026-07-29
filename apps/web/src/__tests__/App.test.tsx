@@ -10,6 +10,11 @@ import {
 } from "../graphql/queue-items";
 import { GET_ROOM_EVENTS, ROOM_EVENT_ADDED } from "../graphql/room-events";
 import { GET_ROOM } from "../graphql/rooms";
+import {
+  CLEAR_NOW_PLAYING,
+  GET_SKIP_VOTE_STATE,
+  SKIP_VOTE_STATE_UPDATED,
+} from "../graphql/skip-votes";
 import App from "../App";
 
 const room = {
@@ -163,6 +168,56 @@ const popQueueItemMock = {
   maxUsageCount: Number.POSITIVE_INFINITY,
 };
 
+const skipVoteStateFields = {
+  __typename: "SkipVoteState",
+  roomId: "abc123",
+  queueItemId: null,
+  voteCount: 0,
+  participantCount: 0,
+  threshold: 0,
+  passed: false,
+  viewerHasVoted: false,
+};
+
+const getSkipVoteStateMock = {
+  request: {
+    query: GET_SKIP_VOTE_STATE,
+    variables: { roomId: "abc123", participantId: null },
+  },
+  result: {
+    data: {
+      skipVoteState: skipVoteStateFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const skipVoteStateUpdatedMock = {
+  request: {
+    query: SKIP_VOTE_STATE_UPDATED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      skipVoteStateUpdated: skipVoteStateFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const clearNowPlayingMock = {
+  request: {
+    query: CLEAR_NOW_PLAYING,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      clearNowPlaying: skipVoteStateFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
 function renderApp(path: string) {
   return render(
     <MockedProvider
@@ -175,6 +230,9 @@ function renderApp(path: string) {
         queueItemPoppedMock,
         queueItemUpdatedMock,
         popQueueItemMock,
+        getSkipVoteStateMock,
+        skipVoteStateUpdatedMock,
+        clearNowPlayingMock,
         getRoomMock,
       ]}
     >

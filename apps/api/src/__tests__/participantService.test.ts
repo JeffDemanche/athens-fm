@@ -29,10 +29,20 @@ function createFakeRooms(seed: Room[] = []): RoomRepository {
         id: `room_${rooms.length + 1}`,
         shortId: `A${String(rooms.length + 1).padStart(4, "2")}`,
         name: input.name,
+        nowPlayingQueueItemId: null,
         createdAt: now,
         updatedAt: now,
       };
       rooms.push(room);
+      return room;
+    },
+    async setNowPlaying(roomId, queueItemId) {
+      const room = rooms.find((entry) => entry.id === roomId);
+      if (!room) {
+        return null;
+      }
+      room.nowPlayingQueueItemId = queueItemId;
+      room.updatedAt = new Date();
       return room;
     },
   };
