@@ -6,6 +6,7 @@ import {
   type ParticipantFields,
   type RoomFields,
 } from "@/graphql/rooms";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import {
   getActiveMembership,
   setActiveMembership,
@@ -63,6 +64,9 @@ export function CreateRoomForm({ disabled = false }: CreateRoomFormProps) {
       roomShortId: payload.room.shortId,
       role: payload.participant.role,
       participantName: null,
+    });
+    trackEvent(AnalyticsEvent.RoomCreated, {
+      roomShortId: payload.room.shortId,
     });
     void navigate(`/rooms/${payload.room.shortId}/host`);
   }
