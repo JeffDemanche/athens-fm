@@ -26,6 +26,10 @@ const room = {
   id: "abc123",
   shortId: "K7M2P",
   name: "Studio Night",
+  skipQuorumPercent: 51,
+  volumeQuorumPercent: 34,
+  maxSubmissionDurationMinutes: null,
+  maxSimultaneousSubmissions: null,
   createdAt: "2026-07-13T00:00:00.000Z",
   updatedAt: "2026-07-13T00:00:00.000Z",
 };

@@ -8,7 +8,7 @@ import {
 
 /**
  * Live volume-vote tally for the room's current now-playing item.
- * Quorum is floor(n/3)+1 of active guests (independent of skip majority).
+ * Quorum is ceil(n * volumeQuorumPercent / 100) of active guests.
  */
 @ObjectType()
 export class VolumeVoteState {
@@ -33,7 +33,7 @@ export class VolumeVoteState {
   @Field(() => Int)
   participantCount!: number;
 
-  /** Votes needed to pass: floor(n/3)+1 when n>0, else 0. */
+  /** Votes needed to pass from the room's volume quorum percent. */
   @Field(() => Int)
   threshold!: number;
 

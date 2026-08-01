@@ -6,6 +6,7 @@ import type { RoomEvent } from "../entities/RoomEvent.js";
 import { RoomEventType } from "../entities/RoomEvent.js";
 import { activeSince } from "../lib/activeParticipant.js";
 import { participantNameKey } from "../lib/participantName.js";
+import { DEFAULT_ROOM_SETTINGS } from "../lib/roomSettings.js";
 import type { ParticipantRepository } from "../repositories/participantRepository.js";
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import type { RoomEventService } from "../services/roomEventService.js";
@@ -34,6 +35,7 @@ function createFakeRooms(seed: Room[] = []): RoomRepository {
         shortId: `A${String(rooms.length + 1).padStart(4, "2")}`,
         name: input.name,
         nowPlayingQueueItemId: null,
+        ...DEFAULT_ROOM_SETTINGS,
         createdAt: now,
         updatedAt: now,
       };
@@ -46,6 +48,15 @@ function createFakeRooms(seed: Room[] = []): RoomRepository {
         return null;
       }
       room.nowPlayingQueueItemId = queueItemId;
+      room.updatedAt = new Date();
+      return room;
+    },
+    async updateSettings(roomId, settings) {
+      const room = rooms.find((entry) => entry.id === roomId);
+      if (!room) {
+        return null;
+      }
+      Object.assign(room, settings);
       room.updatedAt = new Date();
       return room;
     },
@@ -274,6 +285,8 @@ describe("participantService", () => {
     id: "room_1",
     shortId: "K7M2P",
     name: "Studio",
+    nowPlayingQueueItemId: null,
+    ...DEFAULT_ROOM_SETTINGS,
     createdAt: now,
     updatedAt: now,
   };

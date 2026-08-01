@@ -7,6 +7,7 @@ import { PlaylistPanel } from "@/features/host-desk/playlist-panel";
 import { VideoViewer } from "@/features/host-desk/video-viewer";
 import { useRoomQueue } from "@/features/queue/use-room-queue";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
+import { RoomSettingsModal } from "@/features/room-settings/room-settings-modal";
 import { useSkipVotes } from "@/features/skip-vote/use-skip-votes";
 import { useVolumeVotes } from "@/features/volume-vote/use-volume-votes";
 import type { QueueItemFields } from "@/graphql/queue-items";
@@ -172,6 +173,14 @@ export function HostRoomView() {
               {room.shortId}
             </Text>
           </div>
+          <RoomSettingsModal
+            settings={{
+              skipQuorumPercent: room.skipQuorumPercent,
+              volumeQuorumPercent: room.volumeQuorumPercent,
+              maxSubmissionDurationMinutes: room.maxSubmissionDurationMinutes,
+              maxSimultaneousSubmissions: room.maxSimultaneousSubmissions,
+            }}
+          />
           <Button
             type="button"
             variant="outline"

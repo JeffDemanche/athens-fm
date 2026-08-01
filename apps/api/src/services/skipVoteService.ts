@@ -1,5 +1,9 @@
 import type { SkipVoteState } from "../entities/SkipVoteState.js";
 import { publishSkipVoteStateUpdated } from "../graphql/pubsub.js";
+import {
+  DEFAULT_SKIP_QUORUM_PERCENT,
+  quorumThreshold,
+} from "../lib/roomSettings.js";
 import { AppError } from "../middleware/errorHandler.js";
 import type { ParticipantRepository } from "../repositories/participantRepository.js";
 import { participantRepository } from "../repositories/participantRepository.js";
@@ -10,12 +14,12 @@ import {
   type SkipVoteRepository,
 } from "../repositories/skipVoteRepository.js";
 
-/** Simple majority: more than half of active participants. */
-export function skipThreshold(participantCount: number): number {
-  if (participantCount <= 0) {
-    return 0;
-  }
-  return Math.floor(participantCount / 2) + 1;
+/** Skip votes needed given active guests and the room's quorum percent. */
+export function skipThreshold(
+  participantCount: number,
+  percent: number = DEFAULT_SKIP_QUORUM_PERCENT,
+): number {
+  return quorumThreshold(participantCount, percent);
 }
 
 export function createSkipVoteService(
@@ -41,7 +45,10 @@ export function createSkipVoteService(
       queueItemId && activeGuestIds.length > 0
         ? await skipVotes.countByRoomAndParticipants(room.id, activeGuestIds)
         : 0;
-    const threshold = skipThreshold(participantCount);
+    const threshold = skipThreshold(
+      participantCount,
+      room.skipQuorumPercent,
+    );
     const passed = threshold > 0 && voteCount >= threshold;
 
     let viewerHasVoted = false;

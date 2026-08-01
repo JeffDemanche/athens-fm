@@ -4,6 +4,10 @@ import {
   VolumeVoteValue,
 } from "../entities/VolumeVote.js";
 import { publishVolumeVoteStateUpdated } from "../graphql/pubsub.js";
+import {
+  DEFAULT_VOLUME_QUORUM_PERCENT,
+  quorumThreshold,
+} from "../lib/roomSettings.js";
 import { AppError } from "../middleware/errorHandler.js";
 import type { ParticipantRepository } from "../repositories/participantRepository.js";
 import { participantRepository } from "../repositories/participantRepository.js";
@@ -14,15 +18,12 @@ import {
   type VolumeVoteRepository,
 } from "../repositories/volumeVoteRepository.js";
 
-/**
- * Volume quorum — slightly lower than skip's simple majority.
- * Interim constant until per-room settings exist.
- */
-export function volumeThreshold(participantCount: number): number {
-  if (participantCount <= 0) {
-    return 0;
-  }
-  return Math.floor(participantCount / 3) + 1;
+/** Volume votes needed given active guests and the room's quorum percent. */
+export function volumeThreshold(
+  participantCount: number,
+  percent: number = DEFAULT_VOLUME_QUORUM_PERCENT,
+): number {
+  return quorumThreshold(participantCount, percent);
 }
 
 export function createVolumeVoteService(
@@ -63,7 +64,10 @@ export function createVolumeVoteService(
     }
 
     const netCount = queueItemId ? upCount - downCount : 0;
-    const threshold = volumeThreshold(participantCount);
+    const threshold = volumeThreshold(
+      participantCount,
+      room.volumeQuorumPercent,
+    );
     const passed = threshold > 0 && Math.abs(netCount) >= threshold;
     const direction = passed
       ? netCount > 0

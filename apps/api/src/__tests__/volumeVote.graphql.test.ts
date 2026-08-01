@@ -13,13 +13,18 @@ const youtubeTitles: Record<string, string> = {
 };
 
 describe("volumeThreshold", () => {
-  it("returns floor(n/3)+1 (lower than skip majority)", () => {
+  it("returns ceil(n * percent / 100) with the default volume percent", () => {
     expect(volumeThreshold(0)).toBe(0);
     expect(volumeThreshold(1)).toBe(1);
     expect(volumeThreshold(2)).toBe(1);
     expect(volumeThreshold(3)).toBe(2);
     expect(volumeThreshold(4)).toBe(2);
     expect(volumeThreshold(6)).toBe(3);
+  });
+
+  it("honors an explicit quorum percent", () => {
+    expect(volumeThreshold(6, 50)).toBe(3);
+    expect(volumeThreshold(6, 100)).toBe(6);
   });
 });
 
@@ -55,6 +60,7 @@ describe("GraphQL VolumeVote API", () => {
                           },
                         },
                       },
+                      contentDetails: { duration: "PT3M33S" },
                     },
                   ],
                 }

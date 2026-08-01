@@ -43,7 +43,7 @@ export const queueItemRepository = {
 
     const docs = await QueueItemModel.find({
       roomId,
-      finished: { $ne: true },
+      finished: false,
     })
       .sort({ score: -1, createdAt: 1 })
       .exec();
@@ -115,6 +115,26 @@ export const queueItemRepository = {
       { new: true },
     ).exec();
     return doc ? toQueueItem(doc) : null;
+  },
+
+  async countActiveByRoomAndParticipant(
+    roomId: string,
+    participantId: string,
+  ): Promise<number> {
+    if (
+      !mongoose.isValidObjectId(roomId) ||
+      !mongoose.isValidObjectId(participantId)
+    ) {
+      return 0;
+    }
+
+    return QueueItemModel.countDocuments({
+      roomId,
+      participantId,
+      // Explicit false only — legacy docs missing `finished` must not count
+      // (and `$ne: true` incorrectly treats those as still in the queue).
+      finished: false,
+    }).exec();
   },
 };
 

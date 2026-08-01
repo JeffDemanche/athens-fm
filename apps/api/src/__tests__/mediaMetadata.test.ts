@@ -1,6 +1,17 @@
 import { jest } from "@jest/globals";
 import { QueueItemType } from "../entities/QueueItem.js";
-import { createYouTubeDataApiMetadataProvider } from "../lib/mediaMetadata.js";
+import {
+  createYouTubeDataApiMetadataProvider,
+  parseYouTubeDurationSeconds,
+} from "../lib/mediaMetadata.js";
+
+describe("parseYouTubeDurationSeconds", () => {
+  it("parses hour/minute/second components", () => {
+    expect(parseYouTubeDurationSeconds("PT3M33S")).toBe(213);
+    expect(parseYouTubeDurationSeconds("PT1H2M10S")).toBe(3730);
+    expect(parseYouTubeDurationSeconds("PT45S")).toBe(45);
+  });
+});
 
 describe("YouTube Data API metadata provider", () => {
   it("maps snippet title and high thumbnail", async () => {
@@ -14,6 +25,9 @@ describe("YouTube Data API metadata provider", () => {
               thumbnails: {
                 high: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" },
               },
+            },
+            contentDetails: {
+              duration: "PT3M33S",
             },
           },
         ],
@@ -30,6 +44,7 @@ describe("YouTube Data API metadata provider", () => {
     ).resolves.toEqual({
       title: "Never Gonna Give You Up",
       thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      durationSeconds: 213,
     });
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -39,6 +54,7 @@ describe("YouTube Data API metadata provider", () => {
     expect(calledUrl).toContain("googleapis.com/youtube/v3/videos");
     expect(calledUrl).toContain("id=dQw4w9WgXcQ");
     expect(calledUrl).toContain("key=test-key");
+    expect(calledUrl).toContain("contentDetails");
   });
 
   it("rejects when the api key is missing", async () => {

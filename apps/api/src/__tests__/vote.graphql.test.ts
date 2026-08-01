@@ -43,6 +43,7 @@ describe("GraphQL Vote API", () => {
                           },
                         },
                       },
+                    contentDetails: { duration: "PT3M33S" },
                     },
                   ],
                 }

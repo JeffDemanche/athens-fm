@@ -4,9 +4,11 @@ import { AppError } from "../middleware/errorHandler.js";
 export type MediaMetadata = {
   title: string;
   thumbnailUrl: string;
+  /** Duration in seconds when the provider reports it; null if unknown. */
+  durationSeconds: number | null;
 };
 
-/** Provider-agnostic metadata lookup (title, thumbnails, later richer fields). */
+/** Provider-agnostic metadata lookup (title, thumbnails, duration). */
 export interface MediaMetadataProvider {
   fetch(type: QueueItemType, externalId: string): Promise<MediaMetadata>;
 }
@@ -21,6 +23,9 @@ type YouTubeVideosListResponse = {
         default?: { url?: string };
       };
     };
+    contentDetails?: {
+      duration?: string;
+    };
   }>;
   error?: {
     message?: string;
@@ -29,6 +34,18 @@ type YouTubeVideosListResponse = {
 
 function youtubeThumbnailFallback(externalId: string): string {
   return `https://i.ytimg.com/vi/${externalId}/hqdefault.jpg`;
+}
+
+/** Parse YouTube ISO 8601 durations like PT1H2M10S into seconds. */
+export function parseYouTubeDurationSeconds(isoDuration: string): number | null {
+  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i.exec(isoDuration.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1] ?? 0);
+  const minutes = Number(match[2] ?? 0);
+  const seconds = Number(match[3] ?? 0);
+  return hours * 3600 + minutes * 60 + seconds;
 }
 
 export function createYouTubeDataApiMetadataProvider(options?: {
@@ -50,7 +67,7 @@ export function createYouTubeDataApiMetadataProvider(options?: {
       }
 
       const url = new URL("https://www.googleapis.com/youtube/v3/videos");
-      url.searchParams.set("part", "snippet");
+      url.searchParams.set("part", "snippet,contentDetails");
       url.searchParams.set("id", externalId);
       url.searchParams.set("key", apiKey);
 
@@ -89,7 +106,12 @@ export function createYouTubeDataApiMetadataProvider(options?: {
         item.snippet?.thumbnails?.default?.url ??
         youtubeThumbnailFallback(externalId);
 
-      return { title, thumbnailUrl };
+      const rawDuration = item.contentDetails?.duration;
+      const durationSeconds = rawDuration
+        ? parseYouTubeDurationSeconds(rawDuration)
+        : null;
+
+      return { title, thumbnailUrl, durationSeconds };
     },
   };
 }

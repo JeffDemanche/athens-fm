@@ -73,10 +73,36 @@ export function createQueueItemService(
       }
 
       const externalId = resolveExternalId(input.type, input.mediaRef);
-      const { title, thumbnailUrl } = await metadata.fetch(
+      const { title, thumbnailUrl, durationSeconds } = await metadata.fetch(
         input.type,
         externalId,
       );
+
+      const maxDurationMinutes = room.maxSubmissionDurationMinutes ?? null;
+      if (
+        maxDurationMinutes !== null &&
+        durationSeconds !== null &&
+        durationSeconds > maxDurationMinutes * 60
+      ) {
+        throw new AppError(
+          `That track is longer than this room's limit of ${maxDurationMinutes} minute${maxDurationMinutes === 1 ? "" : "s"}.`,
+          400,
+        );
+      }
+
+      const maxSimultaneous = room.maxSimultaneousSubmissions ?? null;
+      if (maxSimultaneous !== null) {
+        const activeCount = await repo.countActiveByRoomAndParticipant(
+          room.id,
+          participant.id,
+        );
+        if (activeCount >= maxSimultaneous) {
+          throw new AppError(
+            `You already have ${activeCount} item${activeCount === 1 ? "" : "s"} in the queue (room limit is ${maxSimultaneous}).`,
+            400,
+          );
+        }
+      }
 
       const item = await repo.create({
         roomId: room.id,

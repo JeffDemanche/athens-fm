@@ -13,12 +13,17 @@ const youtubeTitles: Record<string, string> = {
 };
 
 describe("skipThreshold", () => {
-  it("returns a simple majority", () => {
+  it("returns ceil(n * percent / 100) with the default majority percent", () => {
     expect(skipThreshold(0)).toBe(0);
     expect(skipThreshold(1)).toBe(1);
     expect(skipThreshold(2)).toBe(2);
     expect(skipThreshold(3)).toBe(2);
     expect(skipThreshold(4)).toBe(3);
+  });
+
+  it("honors an explicit quorum percent", () => {
+    expect(skipThreshold(4, 25)).toBe(1);
+    expect(skipThreshold(4, 100)).toBe(4);
   });
 });
 
@@ -54,6 +59,7 @@ describe("GraphQL SkipVote API", () => {
                           },
                         },
                       },
+                      contentDetails: { duration: "PT3M33S" },
                     },
                   ],
                 }
