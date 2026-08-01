@@ -13,6 +13,7 @@ import {
   type QueueItemFields,
   type VoteValue,
 } from "@/graphql/queue-items";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 
 type GetQueueItemsResult = {
   queueItems: QueueItemFields[];
@@ -227,7 +228,7 @@ export function useRoomQueue(
         return;
       }
 
-      await voteOnQueueItemMutation({
+      const result = await voteOnQueueItemMutation({
         variables: {
           participantId: viewerId,
           queueItemId,
@@ -247,6 +248,14 @@ export function useRoomQueue(
           );
         },
       });
+
+      const payload = result.data?.voteOnQueueItem;
+      if (payload) {
+        trackEvent(AnalyticsEvent.QueueVote, {
+          value,
+          cleared: payload.value === null,
+        });
+      }
     },
     [roomId, viewerId, voteOnQueueItemMutation],
   );

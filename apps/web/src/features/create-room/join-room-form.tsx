@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { JOIN_ROOM } from "@/graphql/participants";
 import type { ParticipantFields, RoomFields } from "@/graphql/rooms";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import {
   getActiveMembership,
   isInAnotherRoom,
@@ -79,6 +80,9 @@ export function JoinRoomForm({ disabled = false }: JoinRoomFormProps) {
         roomShortId: participant.room.shortId,
         role: participant.role,
         participantName: participant.name,
+      });
+      trackEvent(AnalyticsEvent.RoomJoined, {
+        roomShortId: participant.room.shortId,
       });
       void navigate(`/rooms/${participant.room.shortId}`);
     } catch (joinError) {

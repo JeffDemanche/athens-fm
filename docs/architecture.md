@@ -62,6 +62,11 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - `/` — landing
   - `/rooms/:roomId/host` — host desk (full-viewport layout)
   - `/rooms/:roomId` — participant room view (mobile-web oriented)
+- **Analytics**: Vercel Web Analytics via `@vercel/analytics`
+  - Mounted in `main.tsx` as `VercelAnalytics` inside `BrowserRouter`; passes React Router `path` + rolled-up `route` templates (`/`, `/rooms/:roomId`, `/rooms/:roomId/host`) so room shortIds do not fragment the dashboard
+  - Typed helper `src/lib/analytics.ts` (`trackEvent`) for custom events
+  - Custom events (Pro): `Room Created` / `Room Joined` (`roomShortId`); `Queue Vote` (`value` UP|DOWN, `cleared` boolean). No participant IDs, names, or Mongo ObjectIds.
+  - Enable once in the Vercel project dashboard (Analytics → Enable). Local `vite` uses development mode (console only). Preview deploys still collect under the Preview environment filter.
 - **Host desk layout** (`views/host-room` + `features/host-desk`):
   - Top bar — room name + room code + room settings modal + end-room control (cast/moderator desk; no participant-view link)
   - Main row — large **viewer** (YouTube IFrame Player / now playing held in host local state after soft-pop) left; narrower **activity** feed right
@@ -134,6 +139,7 @@ Vite in Docker uses `CHOKIDAR_USEPOLLING=true` and `server.hmr.clientPort: 5173`
   - Rewrites `/api/*` → `/api` serverless function
   - SPA fallback rewrite for client routes (`/rooms/...`)
   - Cron: `0 0 * * *` → `/api/internal/sweep-inactive` (Hobby max 1/day; in-process ~1m loop covers warm Fluid instances; Pro can tighten to `* * * * *`)
+  - **Web Analytics**: Enable in the Vercel project Analytics tab (adds `/_vercel/insights/*`). No env vars for client tracking; custom events require Pro.
 - **Serverless entry**: `api/index.ts` exports an `http.Server` from `createHttpServer()` (Express + Apollo HTTP + `graphql-ws` WebSockets). Matches [Vercel Functions WebSockets](https://vercel.com/docs/functions/websockets) (native Node `ws`, not `experimental_upgradeWebSocket`).
   - Sockets are pinned to one Function instance; `REDIS_URL` + Yoga Redis event target fans out pub/sub across instances
   - Connections close when the Function hits `maxDuration`; the web client reconnects via `graphql-ws` retry backoff
