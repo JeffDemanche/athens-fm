@@ -29,6 +29,10 @@ import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "./volumeVoteService.js";
 
 export function createQueueItemService(
   repo: QueueItemRepository = queueItemRepository,
@@ -37,6 +41,7 @@ export function createQueueItemService(
   metadata: MediaMetadataProvider = mediaMetadataProvider,
   skipVotes: SkipVoteService = skipVoteService,
   events: RoomEventService = roomEventService,
+  volumeVotes: VolumeVoteService = volumeVoteService,
 ) {
   return {
     async listByRoom(roomIdOrShortId: string): Promise<QueueItem[]> {
@@ -86,12 +91,13 @@ export function createQueueItemService(
       await events.recordItemSubmitted(participant, title);
       publishQueueItemAdded(room.id, item);
       await skipVotes.publishStateForRoom(room.id);
+      await volumeVotes.publishStateForRoom(room.id);
       return item;
     },
 
     /**
      * Soft-pop: mark the item finished so it leaves the active playlist without
-     * deleting the Mongo record. Also sets room now-playing and resets skip votes.
+     * deleting the Mongo record. Also sets room now-playing and resets skip/volume votes.
      */
     async pop(queueItemId: string): Promise<QueueItem> {
       const existing = await repo.findById(queueItemId);
@@ -110,6 +116,7 @@ export function createQueueItemService(
 
       const roomId = String(item.roomId);
       await skipVotes.resetForNowPlaying(roomId, item.id);
+      await volumeVotes.resetForNowPlaying(roomId);
 
       const submitter = await participants.findById(String(item.participantId));
       await events.recordNowPlaying(

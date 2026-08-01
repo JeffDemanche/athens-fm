@@ -8,8 +8,10 @@ import { VideoViewer } from "@/features/host-desk/video-viewer";
 import { useRoomQueue } from "@/features/queue/use-room-queue";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { useSkipVotes } from "@/features/skip-vote/use-skip-votes";
+import { useVolumeVotes } from "@/features/volume-vote/use-volume-votes";
 import type { QueueItemFields } from "@/graphql/queue-items";
 import { GET_ROOM, type RoomFields } from "@/graphql/rooms";
+import { VOLUME_NUDGE_PERCENT } from "@/graphql/volume-votes";
 import { Button } from "@/primitives/button";
 import { Text } from "@/primitives/text";
 
@@ -20,6 +22,10 @@ type GetRoomResult = {
 type GetRoomVars = {
   id: string;
 };
+
+function clampVolume(level: number): number {
+  return Math.min(100, Math.max(0, Math.round(level)));
+}
 
 export function HostRoomView() {
   const { roomId = "" } = useParams<{ roomId: string }>();
@@ -37,9 +43,15 @@ export function HostRoomView() {
   const room = data?.room;
   const { items: queueItems, popQueueItem } = useRoomQueue(room?.id ?? "");
   const { state: skipState, clearNowPlaying } = useSkipVotes(room?.id ?? "");
+  const {
+    state: volumeState,
+    acknowledgeVolumeNudge,
+  } = useVolumeVotes(room?.id ?? "");
   const [nowPlaying, setNowPlaying] = useState<QueueItemFields | null>(null);
+  const [volumePercent, setVolumePercent] = useState(100);
   const advancingRef = useRef(false);
   const skipHandledRef = useRef<string | null>(null);
+  const volumeNudgingRef = useRef(false);
 
   // As soon as a track is selected for playback, soft-pop it from the votable
   // queue so later vote reshuffles cannot skip or displace it.
@@ -83,6 +95,34 @@ export function HostRoomView() {
     skipHandledRef.current = skipState.queueItemId;
     setNowPlaying(null);
   }, [skipState?.passed, skipState?.queueItemId, nowPlaying]);
+
+  // Nudge host volume when volume quorum passes, then clear votes for the next round.
+  useEffect(() => {
+    if (
+      !volumeState?.passed ||
+      !volumeState.direction ||
+      !nowPlaying ||
+      volumeNudgingRef.current
+    ) {
+      return;
+    }
+
+    volumeNudgingRef.current = true;
+    const delta =
+      volumeState.direction === "UP"
+        ? VOLUME_NUDGE_PERCENT
+        : -VOLUME_NUDGE_PERCENT;
+    setVolumePercent((prev) => clampVolume(prev + delta));
+    void acknowledgeVolumeNudge().finally(() => {
+      volumeNudgingRef.current = false;
+    });
+  }, [
+    volumeState?.passed,
+    volumeState?.direction,
+    volumeState?.netCount,
+    nowPlaying,
+    acknowledgeVolumeNudge,
+  ]);
 
   // Only block the desk when we have nothing to show. Refetches set
   // `loading` while cached `room` remains — unmounting here would destroy
@@ -159,6 +199,10 @@ export function HostRoomView() {
           skipThreshold={skipState?.threshold ?? 0}
           skipPassed={skipState?.passed ?? false}
           activeParticipantCount={skipState?.participantCount ?? 0}
+          volumeNetCount={volumeState?.netCount ?? 0}
+          volumeThreshold={volumeState?.threshold ?? 0}
+          volumePassed={volumeState?.passed ?? false}
+          volumePercent={volumePercent}
           onEnded={handleTrackEnded}
         />
         <ActivityFeed roomId={room.id} className="min-h-[12rem]" />

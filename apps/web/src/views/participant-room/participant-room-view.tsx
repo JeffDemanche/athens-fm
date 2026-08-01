@@ -10,6 +10,7 @@ import { RoomDetail } from "@/features/room-detail/room-detail";
 import { useLeaveRoom } from "@/features/room-membership/use-leave-room";
 import { useParticipantActivity } from "@/features/room-membership/use-participant-activity";
 import { SkipVoteToggle } from "@/features/skip-vote/skip-vote-toggle";
+import { VolumeVoteControls } from "@/features/volume-vote/volume-vote-controls";
 import { JOIN_ROOM } from "@/graphql/participants";
 import { GET_ROOM, type ParticipantFields, type RoomFields } from "@/graphql/rooms";
 import {
@@ -162,6 +163,10 @@ export function ParticipantRoomView() {
             <Stack gap="md">
               <NowPlayingThumbnail roomId={room.id} />
               <SkipVoteToggle
+                roomId={room.id}
+                participantId={existing.participantId}
+              />
+              <VolumeVoteControls
                 roomId={room.id}
                 participantId={existing.participantId}
               />

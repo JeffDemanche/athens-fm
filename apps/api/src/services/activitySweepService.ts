@@ -14,6 +14,10 @@ import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "./volumeVoteService.js";
 
 export type ActivitySweepResult = {
   roomIds: string[];
@@ -23,12 +27,13 @@ export type ActivitySweepResult = {
 export function createActivitySweepService(
   participants: ParticipantRepository = participantRepository,
   skipVotes: SkipVoteService = skipVoteService,
+  volumeVotes: VolumeVoteService = volumeVoteService,
   events: RoomEventService = roomEventService,
 ) {
   return {
     /**
      * Find guests who just aged out of the 20m active TTL, post brief
-     * BECAME_INACTIVE room events, and republish skipVoteStateUpdated so UI
+     * BECAME_INACTIVE room events, and republish skip/volume vote state so UI
      * active counts stay current.
      */
     async sweep(
@@ -58,6 +63,7 @@ export function createActivitySweepService(
 
       for (const roomId of roomIds) {
         await skipVotes.publishStateForRoom(roomId);
+        await volumeVotes.publishStateForRoom(roomId);
       }
 
       return { roomIds: [...roomIds], inactiveEventCount };

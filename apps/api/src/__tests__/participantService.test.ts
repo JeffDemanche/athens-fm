@@ -10,6 +10,8 @@ import type { ParticipantRepository } from "../repositories/participantRepositor
 import type { RoomRepository } from "../repositories/roomRepository.js";
 import type { RoomEventService } from "../services/roomEventService.js";
 import type { SkipVoteService } from "../services/skipVoteService.js";
+import type { VolumeVoteService } from "../services/volumeVoteService.js";
+import { VolumeVoteValue } from "../entities/VolumeVote.js";
 
 function createFakeRooms(seed: Room[] = []): RoomRepository {
   const rooms = [...seed];
@@ -174,6 +176,46 @@ function createFakeSkipVotes(): SkipVoteService & {
   };
 }
 
+function createFakeVolumeVotes(): VolumeVoteService & {
+  publishCalls: string[];
+} {
+  const publishCalls: string[] = [];
+  return {
+    publishCalls,
+    async getState() {
+      throw new Error("not used");
+    },
+    async publishStateForRoom(roomId) {
+      publishCalls.push(roomId);
+      return {
+        roomId,
+        queueItemId: null,
+        upCount: 0,
+        downCount: 0,
+        netCount: 0,
+        participantCount: 0,
+        threshold: 0,
+        passed: false,
+        direction: null,
+        viewerVote: VolumeVoteValue.NONE,
+      };
+    },
+    async resetForNowPlaying() {
+      throw new Error("not used");
+    },
+    async clearVotesForRoom() {
+      throw new Error("not used");
+    },
+    async acknowledgeNudge() {
+      throw new Error("not used");
+    },
+    async setVote() {
+      throw new Error("not used");
+    },
+    async clearVotesForParticipant() {},
+  };
+}
+
 function createFakeEvents(): RoomEventService & { events: RoomEvent[] } {
   const events: RoomEvent[] = [];
 
@@ -243,6 +285,7 @@ describe("participantService", () => {
       createFakeRooms([room]),
       events,
       createFakeSkipVotes(),
+      createFakeVolumeVotes(),
     );
 
     const host = await service.joinAsHost("room_1");
@@ -266,6 +309,7 @@ describe("participantService", () => {
       createFakeRooms([room]),
       events,
       createFakeSkipVotes(),
+      createFakeVolumeVotes(),
     );
 
     const guest = await service.joinAsGuest("k7m2p", "Maya");
@@ -302,6 +346,7 @@ describe("participantService", () => {
       createFakeRooms([room]),
       createFakeEvents(),
       createFakeSkipVotes(),
+      createFakeVolumeVotes(),
     );
 
     await service.joinAsGuest("K7M2P", "Maya");
@@ -317,6 +362,7 @@ describe("participantService", () => {
       createFakeRooms([]),
       createFakeEvents(),
       createFakeSkipVotes(),
+      createFakeVolumeVotes(),
     );
 
     await expect(service.joinAsGuest("MISSING", "Maya")).rejects.toMatchObject({
@@ -331,6 +377,7 @@ describe("participantService", () => {
       createFakeRooms([room]),
       createFakeEvents(),
       createFakeSkipVotes(),
+      createFakeVolumeVotes(),
     );
 
     const guest = await service.joinAsGuest("K7M2P", "Maya");
@@ -343,19 +390,23 @@ describe("participantService", () => {
   it("touchActivity only republishes skip state when a guest becomes active", async () => {
     const participants = createFakeParticipants();
     const skipVotes = createFakeSkipVotes();
+    const volumeVotes = createFakeVolumeVotes();
     const service = createParticipantService(
       participants,
       createFakeRooms([room]),
       createFakeEvents(),
       skipVotes,
+      volumeVotes,
     );
 
     const guest = await service.joinAsGuest("K7M2P", "Maya");
     // joinAsGuest already published once.
     expect(skipVotes.publishCalls).toEqual(["room_1"]);
+    expect(volumeVotes.publishCalls).toEqual(["room_1"]);
 
     await service.touchActivity(guest.id);
     expect(skipVotes.publishCalls).toEqual(["room_1"]);
+    expect(volumeVotes.publishCalls).toEqual(["room_1"]);
 
     // Simulate falling out of the active TTL.
     await participants.touchLastActive(
@@ -365,5 +416,6 @@ describe("participantService", () => {
 
     await service.touchActivity(guest.id);
     expect(skipVotes.publishCalls).toEqual(["room_1", "room_1"]);
+    expect(volumeVotes.publishCalls).toEqual(["room_1", "room_1"]);
   });
 });

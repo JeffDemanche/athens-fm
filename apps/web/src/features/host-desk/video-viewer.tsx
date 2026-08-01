@@ -3,6 +3,7 @@ import { useMediaPlayer } from "@/features/player/use-media-player";
 import type { EmbeddableMedia } from "@/features/player/types";
 import { ActiveParticipantsCount } from "@/features/skip-vote/active-participants-count";
 import { SkipVoteTally } from "@/features/skip-vote/skip-vote-tally";
+import { VolumeVoteTally } from "@/features/volume-vote/volume-vote-tally";
 import { Text } from "@/primitives/text";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,10 @@ type VideoViewerProps = {
   skipThreshold?: number;
   skipPassed?: boolean;
   activeParticipantCount?: number;
+  volumeNetCount?: number;
+  volumeThreshold?: number;
+  volumePassed?: boolean;
+  volumePercent?: number;
   onEnded?: () => void;
 };
 
@@ -25,10 +30,15 @@ export function VideoViewer({
   skipThreshold = 0,
   skipPassed = false,
   activeParticipantCount = 0,
+  volumeNetCount = 0,
+  volumeThreshold = 0,
+  volumePassed = false,
+  volumePercent = 100,
   onEnded,
 }: VideoViewerProps) {
   const containerRef = useMediaPlayer(media, {
     events: { onEnded },
+    volume: volumePercent,
   });
 
   return (
@@ -40,11 +50,19 @@ export function VideoViewer({
         <div className="flex flex-wrap items-start justify-end gap-2">
           <ActiveParticipantsCount count={activeParticipantCount} />
           {media ? (
-            <SkipVoteTally
-              voteCount={skipVoteCount}
-              threshold={skipThreshold}
-              passed={skipPassed}
-            />
+            <>
+              <SkipVoteTally
+                voteCount={skipVoteCount}
+                threshold={skipThreshold}
+                passed={skipPassed}
+              />
+              <VolumeVoteTally
+                netCount={volumeNetCount}
+                threshold={volumeThreshold}
+                volumePercent={volumePercent}
+                passed={volumePassed}
+              />
+            </>
           ) : null}
         </div>
       }

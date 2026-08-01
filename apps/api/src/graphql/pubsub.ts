@@ -5,12 +5,14 @@ import type { PubSub } from "type-graphql";
 import type { QueueItem } from "../entities/QueueItem.js";
 import type { RoomEvent } from "../entities/RoomEvent.js";
 import type { SkipVoteState } from "../entities/SkipVoteState.js";
+import type { VolumeVoteState } from "../entities/VolumeVoteState.js";
 
 export const ROOM_EVENT_TOPIC = "ROOM_EVENT" as const;
 export const QUEUE_ITEM_ADDED_TOPIC = "QUEUE_ITEM_ADDED" as const;
 export const QUEUE_ITEM_POPPED_TOPIC = "QUEUE_ITEM_POPPED" as const;
 export const QUEUE_ITEM_UPDATED_TOPIC = "QUEUE_ITEM_UPDATED" as const;
 export const SKIP_VOTE_STATE_TOPIC = "SKIP_VOTE_STATE" as const;
+export const VOLUME_VOTE_STATE_TOPIC = "VOLUME_VOTE_STATE" as const;
 
 type PubSubTopics = {
   [ROOM_EVENT_TOPIC]: [roomId: string, payload: RoomEvent];
@@ -18,6 +20,7 @@ type PubSubTopics = {
   [QUEUE_ITEM_POPPED_TOPIC]: [roomId: string, payload: QueueItem];
   [QUEUE_ITEM_UPDATED_TOPIC]: [roomId: string, payload: QueueItem];
   [SKIP_VOTE_STATE_TOPIC]: [roomId: string, payload: SkipVoteState];
+  [VOLUME_VOTE_STATE_TOPIC]: [roomId: string, payload: VolumeVoteState];
 };
 
 type TopicName = keyof PubSubTopics;
@@ -120,4 +123,11 @@ export function publishSkipVoteStateUpdated(
   state: SkipVoteState,
 ): void {
   pubSub.publish(SKIP_VOTE_STATE_TOPIC, roomId, state);
+}
+
+export function publishVolumeVoteStateUpdated(
+  roomId: string,
+  state: VolumeVoteState,
+): void {
+  pubSub.publish(VOLUME_VOTE_STATE_TOPIC, roomId, state);
 }

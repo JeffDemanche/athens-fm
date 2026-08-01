@@ -105,6 +105,20 @@ describe("activitySweepService", () => {
           };
         },
       } as never,
+      {
+        publishStateForRoom: async () => ({
+          roomId: "",
+          queueItemId: null,
+          upCount: 0,
+          downCount: 0,
+          netCount: 0,
+          participantCount: 0,
+          threshold: 0,
+          passed: false,
+          direction: null,
+          viewerVote: "NONE",
+        }),
+      } as never,
       events,
     );
 
@@ -133,6 +147,9 @@ describe("activitySweepService", () => {
         },
       } as never,
       {
+        publishStateForRoom: async () => undefined,
+      } as never,
+      {
         recordBecameInactive: async () => {
           throw new Error("unexpected");
         },
@@ -152,6 +169,9 @@ describe("activitySweepService", () => {
           guest({ id: "g1", roomId: "room_a" }),
           guest({ id: "g2", roomId: "room_a" }),
         ],
+      } as never,
+      {
+        publishStateForRoom: async () => undefined,
       } as never,
       {
         publishStateForRoom: async () => undefined,

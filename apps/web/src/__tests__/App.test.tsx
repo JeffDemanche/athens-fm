@@ -15,6 +15,10 @@ import {
   GET_SKIP_VOTE_STATE,
   SKIP_VOTE_STATE_UPDATED,
 } from "../graphql/skip-votes";
+import {
+  GET_VOLUME_VOTE_STATE,
+  VOLUME_VOTE_STATE_UPDATED,
+} from "../graphql/volume-votes";
 import App from "../App";
 
 const room = {
@@ -220,6 +224,46 @@ const clearNowPlayingMock = {
   maxUsageCount: Number.POSITIVE_INFINITY,
 };
 
+const volumeVoteStateFields = {
+  __typename: "VolumeVoteState",
+  roomId: "abc123",
+  queueItemId: null,
+  upCount: 0,
+  downCount: 0,
+  netCount: 0,
+  participantCount: 0,
+  threshold: 0,
+  passed: false,
+  direction: null,
+  viewerVote: "NONE",
+};
+
+const getVolumeVoteStateMock = {
+  request: {
+    query: GET_VOLUME_VOTE_STATE,
+    variables: { roomId: "abc123", participantId: null },
+  },
+  result: {
+    data: {
+      volumeVoteState: volumeVoteStateFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
+const volumeVoteStateUpdatedMock = {
+  request: {
+    query: VOLUME_VOTE_STATE_UPDATED,
+    variables: { roomId: "abc123" },
+  },
+  result: {
+    data: {
+      volumeVoteStateUpdated: volumeVoteStateFields,
+    },
+  },
+  maxUsageCount: Number.POSITIVE_INFINITY,
+};
+
 function renderApp(path: string) {
   return render(
     <MockedProvider
@@ -235,6 +279,8 @@ function renderApp(path: string) {
         getSkipVoteStateMock,
         skipVoteStateUpdatedMock,
         clearNowPlayingMock,
+        getVolumeVoteStateMock,
+        volumeVoteStateUpdatedMock,
         getRoomMock,
       ]}
     >

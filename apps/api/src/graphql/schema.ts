@@ -6,6 +6,7 @@ import { QueueItemResolver } from "./resolvers/QueueItemResolver.js";
 import { RoomEventResolver } from "./resolvers/RoomEventResolver.js";
 import { RoomResolver } from "./resolvers/RoomResolver.js";
 import { SkipVoteResolver } from "./resolvers/SkipVoteResolver.js";
+import { VolumeVoteResolver } from "./resolvers/VolumeVoteResolver.js";
 import { VoteResolver } from "./resolvers/VoteResolver.js";
 
 let schemaPromise: Promise<GraphQLSchema> | null = null;
@@ -20,6 +21,7 @@ export function buildGraphQLSchema(): Promise<GraphQLSchema> {
         QueueItemResolver,
         VoteResolver,
         SkipVoteResolver,
+        VolumeVoteResolver,
       ],
       pubSub,
       validate: false,
