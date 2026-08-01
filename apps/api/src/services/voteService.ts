@@ -17,6 +17,10 @@ import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "./volumeVoteService.js";
 
 function scoreDelta(
   previous: VoteValue | null,
@@ -40,6 +44,7 @@ export function createVoteService(
   participants: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
   skipVotes: SkipVoteService = skipVoteService,
+  volumeVotes: VolumeVoteService = volumeVoteService,
 ) {
   return {
     async getViewerVote(
@@ -130,6 +135,7 @@ export function createVoteService(
 
       publishQueueItemUpdated(String(updated.roomId), updated);
       await skipVotes.publishStateForRoom(String(updated.roomId));
+      await volumeVotes.publishStateForRoom(String(updated.roomId));
       return { queueItem: updated, value: nextValue };
     },
   };

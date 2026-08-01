@@ -16,6 +16,10 @@ import {
   type SkipVoteService,
 } from "../services/skipVoteService.js";
 import { voteService, type VoteService } from "../services/voteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "../services/volumeVoteService.js";
 
 export type GraphQLContext = {
   services: {
@@ -25,6 +29,7 @@ export type GraphQLContext = {
     queueItem: QueueItemService;
     vote: VoteService;
     skipVote: SkipVoteService;
+    volumeVote: VolumeVoteService;
   };
 };
 
@@ -37,6 +42,7 @@ export function createGraphQLContext(): GraphQLContext {
       queueItem: queueItemService,
       vote: voteService,
       skipVote: skipVoteService,
+      volumeVote: volumeVoteService,
     },
   };
 }

@@ -5,29 +5,30 @@ import request from "supertest";
 import { createApp } from "../app.js";
 import { connectMongo, disconnectMongo } from "../config/mongo.js";
 import { initPubSub } from "../graphql/pubsub.js";
-import { skipThreshold } from "../services/skipVoteService.js";
+import { volumeThreshold } from "../services/volumeVoteService.js";
 
 const youtubeTitles: Record<string, string> = {
   dQw4w9WgXcQ: "Never Gonna Give You Up",
   jNQXAC9IVRw: "Me at the zoo",
 };
 
-describe("skipThreshold", () => {
-  it("returns ceil(n * percent / 100) with the default majority percent", () => {
-    expect(skipThreshold(0)).toBe(0);
-    expect(skipThreshold(1)).toBe(1);
-    expect(skipThreshold(2)).toBe(2);
-    expect(skipThreshold(3)).toBe(2);
-    expect(skipThreshold(4)).toBe(3);
+describe("volumeThreshold", () => {
+  it("returns ceil(n * percent / 100) with the default volume percent", () => {
+    expect(volumeThreshold(0)).toBe(0);
+    expect(volumeThreshold(1)).toBe(1);
+    expect(volumeThreshold(2)).toBe(1);
+    expect(volumeThreshold(3)).toBe(2);
+    expect(volumeThreshold(4)).toBe(2);
+    expect(volumeThreshold(6)).toBe(3);
   });
 
   it("honors an explicit quorum percent", () => {
-    expect(skipThreshold(4, 25)).toBe(1);
-    expect(skipThreshold(4, 100)).toBe(4);
+    expect(volumeThreshold(6, 50)).toBe(3);
+    expect(volumeThreshold(6, 100)).toBe(6);
   });
 });
 
-describe("GraphQL SkipVote API", () => {
+describe("GraphQL VolumeVote API", () => {
   let mongo: MongoMemoryServer;
   let app: Awaited<ReturnType<typeof createApp>>;
   let fetchSpy: ReturnType<typeof jest.spyOn>;
@@ -160,68 +161,152 @@ describe("GraphQL SkipVote API", () => {
     return response.body.data.popQueueItem as { id: string; finished: boolean };
   }
 
-  async function skipState(roomId: string, participantId?: string) {
+  type VolumeState = {
+    roomId: string;
+    queueItemId: string | null;
+    upCount: number;
+    downCount: number;
+    netCount: number;
+    participantCount: number;
+    threshold: number;
+    passed: boolean;
+    direction: "UP" | "DOWN" | null;
+    viewerVote: "UP" | "DOWN" | "NONE";
+  };
+
+  async function volumeState(roomId: string, participantId?: string) {
     const response = await request(app)
       .post("/api/graphql")
       .send({
         query: `
           query State($roomId: ID!, $participantId: ID) {
-            skipVoteState(roomId: $roomId, participantId: $participantId) {
+            volumeVoteState(roomId: $roomId, participantId: $participantId) {
               roomId
               queueItemId
-              voteCount
+              upCount
+              downCount
+              netCount
               participantCount
               threshold
               passed
-              viewerHasVoted
+              direction
+              viewerVote
             }
           }
         `,
         variables: { roomId, participantId: participantId ?? null },
       });
     expect(response.body.errors).toBeUndefined();
-    return response.body.data.skipVoteState as {
-      roomId: string;
-      queueItemId: string | null;
-      voteCount: number;
-      participantCount: number;
-      threshold: number;
-      passed: boolean;
-      viewerHasVoted: boolean;
-    };
+    return response.body.data.volumeVoteState as VolumeState;
   }
 
-  async function toggleSkip(participantId: string) {
-    const response = await request(app)
+  async function setVolume(
+    participantId: string,
+    value: "UP" | "DOWN" | "NONE",
+  ) {
+    return request(app)
       .post("/api/graphql")
       .send({
         query: `
-          mutation Toggle($participantId: ID!) {
-            toggleSkipVote(participantId: $participantId) {
-              voteCount
+          mutation Set($participantId: ID!, $value: VolumeVoteValue!) {
+            setVolumeVote(participantId: $participantId, value: $value) {
+              upCount
+              downCount
+              netCount
               participantCount
               threshold
               passed
-              viewerHasVoted
+              direction
+              viewerVote
               queueItemId
             }
           }
         `,
-        variables: { participantId },
+        variables: { participantId, value },
       });
-    return response;
   }
 
-  it("rejects skip votes when nothing is playing", async () => {
-    const created = await createRoom("Skip Desk");
+  it("rejects volume votes when nothing is playing", async () => {
+    const created = await createRoom("Volume Desk");
     const guestId = await joinGuest(created.room.shortId, "Maya");
 
-    const response = await toggleSkip(guestId);
+    const response = await setVolume(guestId, "UP");
     expect(response.body.errors?.[0]?.message).toMatch(/nothing is playing/i);
   });
 
-  it("toggles skip votes and passes on simple majority of guests", async () => {
-    const created = await createRoom("Skip Desk");
+  it("sets, switches, and clears volume votes; passes on net quorum", async () => {
+    const created = await createRoom("Volume Desk");
+    const guestA = await joinGuest(created.room.shortId, "Maya");
+    const guestB = await joinGuest(created.room.shortId, "Leo");
+    const guestC = await joinGuest(created.room.shortId, "Sam");
+    const guestD = await joinGuest(created.room.shortId, "Kit");
+
+    const itemId = await addItem(guestA, "dQw4w9WgXcQ");
+    await popItem(itemId);
+
+    const idle = await volumeState(created.room.id, guestA);
+    expect(idle.queueItemId).toBe(itemId);
+    expect(idle).toMatchObject({
+      upCount: 0,
+      downCount: 0,
+      netCount: 0,
+      participantCount: 4,
+      threshold: 2,
+      passed: false,
+      direction: null,
+      viewerVote: "NONE",
+    });
+
+    const up = await setVolume(guestA, "UP");
+    expect(up.body.errors).toBeUndefined();
+    expect(up.body.data.setVolumeVote).toMatchObject({
+      upCount: 1,
+      downCount: 0,
+      netCount: 1,
+      threshold: 2,
+      passed: false,
+      viewerVote: "UP",
+      queueItemId: itemId,
+    });
+
+    const switched = await setVolume(guestA, "DOWN");
+    expect(switched.body.errors).toBeUndefined();
+    expect(switched.body.data.setVolumeVote).toMatchObject({
+      upCount: 0,
+      downCount: 1,
+      netCount: -1,
+      viewerVote: "DOWN",
+      passed: false,
+    });
+
+    const cleared = await setVolume(guestA, "NONE");
+    expect(cleared.body.errors).toBeUndefined();
+    expect(cleared.body.data.setVolumeVote).toMatchObject({
+      upCount: 0,
+      downCount: 0,
+      netCount: 0,
+      viewerVote: "NONE",
+    });
+
+    await setVolume(guestA, "UP");
+    const second = await setVolume(guestB, "UP");
+    expect(second.body.errors).toBeUndefined();
+    expect(second.body.data.setVolumeVote).toMatchObject({
+      upCount: 2,
+      downCount: 0,
+      netCount: 2,
+      threshold: 2,
+      passed: true,
+      direction: "UP",
+      viewerVote: "UP",
+    });
+
+    void guestC;
+    void guestD;
+  });
+
+  it("net counts cancel opposing votes before quorum", async () => {
+    const created = await createRoom("Volume Desk");
     const guestA = await joinGuest(created.room.shortId, "Maya");
     const guestB = await joinGuest(created.room.shortId, "Leo");
     const guestC = await joinGuest(created.room.shortId, "Sam");
@@ -229,121 +314,111 @@ describe("GraphQL SkipVote API", () => {
     const itemId = await addItem(guestA, "dQw4w9WgXcQ");
     await popItem(itemId);
 
-    const idle = await skipState(created.room.id, guestA);
-    expect(idle.queueItemId).toBe(itemId);
-    expect(idle.voteCount).toBe(0);
-    expect(idle.participantCount).toBe(3);
-    expect(idle.threshold).toBe(2);
-    expect(idle.passed).toBe(false);
-    expect(idle.viewerHasVoted).toBe(false);
-
-    const first = await toggleSkip(guestA);
-    expect(first.body.errors).toBeUndefined();
-    expect(first.body.data.toggleSkipVote).toMatchObject({
-      voteCount: 1,
+    await setVolume(guestA, "UP");
+    await setVolume(guestB, "UP");
+    const opposed = await setVolume(guestC, "DOWN");
+    expect(opposed.body.errors).toBeUndefined();
+    // net = 2 - 1 = 1; threshold for 3 guests is 2 → not passed
+    expect(opposed.body.data.setVolumeVote).toMatchObject({
+      upCount: 2,
+      downCount: 1,
+      netCount: 1,
       threshold: 2,
       passed: false,
-      viewerHasVoted: true,
-      queueItemId: itemId,
+      direction: null,
     });
-
-    const cleared = await toggleSkip(guestA);
-    expect(cleared.body.errors).toBeUndefined();
-    expect(cleared.body.data.toggleSkipVote).toMatchObject({
-      voteCount: 0,
-      viewerHasVoted: false,
-      passed: false,
-    });
-
-    await toggleSkip(guestA);
-    const second = await toggleSkip(guestB);
-    expect(second.body.errors).toBeUndefined();
-    expect(second.body.data.toggleSkipVote).toMatchObject({
-      voteCount: 2,
-      threshold: 2,
-      passed: true,
-      viewerHasVoted: true,
-    });
-
-    // Third guest not required once majority is met.
-    void guestC;
   });
 
-  it("resets skip votes when the next item is popped", async () => {
-    const created = await createRoom("Skip Desk");
+  it("resets volume votes when the next item is popped", async () => {
+    const created = await createRoom("Volume Desk");
     const guestA = await joinGuest(created.room.shortId, "Maya");
-    const guestB = await joinGuest(created.room.shortId, "Leo");
 
     const firstId = await addItem(guestA, "dQw4w9WgXcQ");
     const secondId = await addItem(guestA, "jNQXAC9IVRw");
     await popItem(firstId);
 
-    await toggleSkip(guestA);
-    let state = await skipState(created.room.id, guestA);
-    expect(state.voteCount).toBe(1);
-    expect(state.viewerHasVoted).toBe(true);
+    await setVolume(guestA, "UP");
+    let state = await volumeState(created.room.id, guestA);
+    expect(state.upCount).toBe(1);
+    expect(state.viewerVote).toBe("UP");
 
     await popItem(secondId);
-    state = await skipState(created.room.id, guestA);
+    state = await volumeState(created.room.id, guestA);
     expect(state.queueItemId).toBe(secondId);
-    expect(state.voteCount).toBe(0);
-    expect(state.viewerHasVoted).toBe(false);
+    expect(state.upCount).toBe(0);
+    expect(state.netCount).toBe(0);
+    expect(state.viewerVote).toBe("NONE");
     expect(state.passed).toBe(false);
-
-    // Host is excluded from quorum — two guests → threshold 2.
-    expect(state.participantCount).toBe(2);
-    expect(state.threshold).toBe(2);
-    void guestB;
   });
 
-  it("clearNowPlaying clears the tally when the queue is idle", async () => {
-    const created = await createRoom("Skip Desk");
-    const guestId = await joinGuest(created.room.shortId, "Maya");
-    const itemId = await addItem(guestId, "dQw4w9WgXcQ");
-    await popItem(itemId);
-    await toggleSkip(guestId);
+  it("acknowledgeVolumeNudge clears votes after quorum", async () => {
+    const created = await createRoom("Volume Desk");
+    const guestA = await joinGuest(created.room.shortId, "Maya");
+    const guestB = await joinGuest(created.room.shortId, "Leo");
 
-    const response = await request(app)
+    const itemId = await addItem(guestA, "dQw4w9WgXcQ");
+    await popItem(itemId);
+
+    await setVolume(guestA, "DOWN");
+    // 2 guests → threshold 1; one DOWN vote passes
+    const passed = await setVolume(guestB, "NONE");
+    expect(passed.body.data.setVolumeVote).toMatchObject({
+      downCount: 1,
+      netCount: -1,
+      threshold: 1,
+      passed: true,
+      direction: "DOWN",
+    });
+
+    const ack = await request(app)
       .post("/api/graphql")
       .send({
         query: `
-          mutation Clear($roomId: ID!) {
-            clearNowPlaying(roomId: $roomId) {
-              queueItemId
-              voteCount
-              viewerHasVoted
+          mutation Ack($roomId: ID!) {
+            acknowledgeVolumeNudge(roomId: $roomId) {
+              upCount
+              downCount
+              netCount
               passed
+              direction
+              viewerVote
+              queueItemId
             }
           }
         `,
         variables: { roomId: created.room.id },
       });
 
-    expect(response.body.errors).toBeUndefined();
-    expect(response.body.data.clearNowPlaying).toEqual({
-      queueItemId: null,
-      voteCount: 0,
-      viewerHasVoted: false,
+    expect(ack.body.errors).toBeUndefined();
+    expect(ack.body.data.acknowledgeVolumeNudge).toMatchObject({
+      upCount: 0,
+      downCount: 0,
+      netCount: 0,
       passed: false,
+      direction: null,
+      queueItemId: itemId,
     });
+
+    const state = await volumeState(created.room.id, guestA);
+    expect(state.viewerVote).toBe("NONE");
   });
 
-  it("excludes inactive guests from skip quorum and vote count", async () => {
-    const created = await createRoom("Skip Desk");
+  it("excludes inactive guests from volume quorum and vote count", async () => {
+    const created = await createRoom("Volume Desk");
     const guestA = await joinGuest(created.room.shortId, "Maya");
     const guestB = await joinGuest(created.room.shortId, "Leo");
 
     const itemId = await addItem(guestA, "dQw4w9WgXcQ");
     await popItem(itemId);
-    await toggleSkip(guestA);
-    await toggleSkip(guestB);
+    await setVolume(guestA, "UP");
+    await setVolume(guestB, "UP");
 
-    let state = await skipState(created.room.id, guestA);
+    let state = await volumeState(created.room.id, guestA);
     expect(state.participantCount).toBe(2);
-    expect(state.voteCount).toBe(2);
+    expect(state.upCount).toBe(2);
     expect(state.passed).toBe(true);
+    expect(state.direction).toBe("UP");
 
-    // Age guest B past the active TTL.
     await mongoose.connection.collection("participants").updateOne(
       { _id: new mongoose.Types.ObjectId(guestB) },
       {
@@ -353,29 +428,10 @@ describe("GraphQL SkipVote API", () => {
       },
     );
 
-    state = await skipState(created.room.id, guestA);
+    state = await volumeState(created.room.id, guestA);
     expect(state.participantCount).toBe(1);
     expect(state.threshold).toBe(1);
-    expect(state.voteCount).toBe(1);
+    expect(state.upCount).toBe(1);
     expect(state.passed).toBe(true);
-
-    const touch = await request(app)
-      .post("/api/graphql")
-      .send({
-        query: `
-          mutation Touch($participantId: ID!) {
-            touchParticipantActivity(participantId: $participantId) {
-              id
-              lastActiveAt
-            }
-          }
-        `,
-        variables: { participantId: guestB },
-      });
-    expect(touch.body.errors).toBeUndefined();
-
-    state = await skipState(created.room.id, guestA);
-    expect(state.participantCount).toBe(2);
-    expect(state.voteCount).toBe(2);
   });
 });

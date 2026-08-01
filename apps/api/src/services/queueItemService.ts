@@ -29,6 +29,10 @@ import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "./volumeVoteService.js";
 
 export function createQueueItemService(
   repo: QueueItemRepository = queueItemRepository,
@@ -37,6 +41,7 @@ export function createQueueItemService(
   metadata: MediaMetadataProvider = mediaMetadataProvider,
   skipVotes: SkipVoteService = skipVoteService,
   events: RoomEventService = roomEventService,
+  volumeVotes: VolumeVoteService = volumeVoteService,
 ) {
   return {
     async listByRoom(roomIdOrShortId: string): Promise<QueueItem[]> {
@@ -68,10 +73,36 @@ export function createQueueItemService(
       }
 
       const externalId = resolveExternalId(input.type, input.mediaRef);
-      const { title, thumbnailUrl } = await metadata.fetch(
+      const { title, thumbnailUrl, durationSeconds } = await metadata.fetch(
         input.type,
         externalId,
       );
+
+      const maxDurationMinutes = room.maxSubmissionDurationMinutes ?? null;
+      if (
+        maxDurationMinutes !== null &&
+        durationSeconds !== null &&
+        durationSeconds > maxDurationMinutes * 60
+      ) {
+        throw new AppError(
+          `That track is longer than this room's limit of ${maxDurationMinutes} minute${maxDurationMinutes === 1 ? "" : "s"}.`,
+          400,
+        );
+      }
+
+      const maxSimultaneous = room.maxSimultaneousSubmissions ?? null;
+      if (maxSimultaneous !== null) {
+        const activeCount = await repo.countActiveByRoomAndParticipant(
+          room.id,
+          participant.id,
+        );
+        if (activeCount >= maxSimultaneous) {
+          throw new AppError(
+            `You already have ${activeCount} item${activeCount === 1 ? "" : "s"} in the queue (room limit is ${maxSimultaneous}).`,
+            400,
+          );
+        }
+      }
 
       const item = await repo.create({
         roomId: room.id,
@@ -86,12 +117,13 @@ export function createQueueItemService(
       await events.recordItemSubmitted(participant, title);
       publishQueueItemAdded(room.id, item);
       await skipVotes.publishStateForRoom(room.id);
+      await volumeVotes.publishStateForRoom(room.id);
       return item;
     },
 
     /**
      * Soft-pop: mark the item finished so it leaves the active playlist without
-     * deleting the Mongo record. Also sets room now-playing and resets skip votes.
+     * deleting the Mongo record. Also sets room now-playing and resets skip/volume votes.
      */
     async pop(queueItemId: string): Promise<QueueItem> {
       const existing = await repo.findById(queueItemId);
@@ -110,6 +142,7 @@ export function createQueueItemService(
 
       const roomId = String(item.roomId);
       await skipVotes.resetForNowPlaying(roomId, item.id);
+      await volumeVotes.resetForNowPlaying(roomId);
 
       const submitter = await participants.findById(String(item.participantId));
       await events.recordNowPlaying(

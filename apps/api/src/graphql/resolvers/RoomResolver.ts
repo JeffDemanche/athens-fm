@@ -4,6 +4,7 @@ import { Participant } from "../../entities/Participant.js";
 import { QueueItem } from "../../entities/QueueItem.js";
 import { Room } from "../../entities/Room.js";
 import { RoomEvent } from "../../entities/RoomEvent.js";
+import { RoomSettingsInput } from "../../entities/RoomSettingsInput.js";
 import type { GraphQLContext } from "../context.js";
 
 @Resolver(() => Room)
@@ -29,6 +30,15 @@ export class RoomResolver {
     const room = await context.services.room.create(name);
     const participant = await context.services.participant.joinAsHost(room.id);
     return { room, participant };
+  }
+
+  @Mutation(() => Room)
+  async updateRoomSettings(
+    @Arg("participantId", () => ID) participantId: string,
+    @Arg("input", () => RoomSettingsInput) input: RoomSettingsInput,
+    @Ctx() context: GraphQLContext,
+  ): Promise<Room> {
+    return context.services.room.updateSettings(participantId, input);
   }
 
   @FieldResolver(() => [Participant])

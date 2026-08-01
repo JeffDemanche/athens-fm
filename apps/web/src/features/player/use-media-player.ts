@@ -4,6 +4,8 @@ import type { EmbeddableMedia, MediaPlayer, MediaPlayerEvents } from "./types";
 
 type UseMediaPlayerOptions = {
   events?: MediaPlayerEvents;
+  /** Playback volume 0–100; applied on ready and whenever it changes. */
+  volume?: number;
 };
 
 /**
@@ -18,6 +20,8 @@ export function useMediaPlayer(
   const playerRef = useRef<MediaPlayer | null>(null);
   const eventsRef = useRef(options?.events);
   eventsRef.current = options?.events;
+  const volumeRef = useRef(options?.volume);
+  volumeRef.current = options?.volume;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -36,7 +40,12 @@ export function useMediaPlayer(
 
     void player
       .mount(container, media, {
-        onReady: () => eventsRef.current?.onReady?.(),
+        onReady: () => {
+          if (volumeRef.current != null) {
+            player.setVolume(volumeRef.current);
+          }
+          eventsRef.current?.onReady?.();
+        },
         onEnded: () => eventsRef.current?.onEnded?.(),
         onError: (error) => eventsRef.current?.onError?.(error),
       })
@@ -54,6 +63,13 @@ export function useMediaPlayer(
       }
     };
   }, [media?.type, media?.externalId]);
+
+  useEffect(() => {
+    if (options?.volume == null) {
+      return;
+    }
+    playerRef.current?.setVolume(options.volume);
+  }, [options?.volume]);
 
   return containerRef;
 }

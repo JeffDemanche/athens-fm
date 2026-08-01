@@ -49,7 +49,9 @@ export class SkipVoteResolver {
     @Arg("roomId", () => ID) roomId: string,
     @Ctx() context: GraphQLContext,
   ): Promise<SkipVoteState> {
-    return context.services.skipVote.clearNowPlaying(roomId);
+    const state = await context.services.skipVote.clearNowPlaying(roomId);
+    await context.services.volumeVote.clearVotesForRoom(roomId);
+    return state;
   }
 
   @Subscription(() => SkipVoteState, {

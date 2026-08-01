@@ -2,6 +2,10 @@ import mongoose from "mongoose";
 import { RoomModel } from "../entities/Room.js";
 import type { Room } from "../entities/Room.js";
 import {
+  DEFAULT_ROOM_SETTINGS,
+  type RoomSettings,
+} from "../lib/roomSettings.js";
+import {
   generateShortId,
   isShortId,
   normalizeShortId,
@@ -14,6 +18,10 @@ function toRoom(doc: {
   shortId: string;
   name: string;
   nowPlayingQueueItemId?: string | mongoose.Types.ObjectId | null;
+  skipQuorumPercent?: number | null;
+  volumeQuorumPercent?: number | null;
+  maxSubmissionDurationMinutes?: number | null;
+  maxSimultaneousSubmissions?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }): Room {
@@ -24,6 +32,16 @@ function toRoom(doc: {
     nowPlayingQueueItemId: doc.nowPlayingQueueItemId
       ? String(doc.nowPlayingQueueItemId)
       : null,
+    skipQuorumPercent:
+      doc.skipQuorumPercent ?? DEFAULT_ROOM_SETTINGS.skipQuorumPercent,
+    volumeQuorumPercent:
+      doc.volumeQuorumPercent ?? DEFAULT_ROOM_SETTINGS.volumeQuorumPercent,
+    maxSubmissionDurationMinutes:
+      doc.maxSubmissionDurationMinutes ??
+      DEFAULT_ROOM_SETTINGS.maxSubmissionDurationMinutes,
+    maxSimultaneousSubmissions:
+      doc.maxSimultaneousSubmissions ??
+      DEFAULT_ROOM_SETTINGS.maxSimultaneousSubmissions,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -68,6 +86,7 @@ export const roomRepository = {
         const doc = await RoomModel.create({
           name: input.name,
           shortId: generateShortId(),
+          ...DEFAULT_ROOM_SETTINGS,
         });
         return toRoom(doc);
       } catch (error) {
@@ -94,6 +113,29 @@ export const roomRepository = {
     const doc = await RoomModel.findByIdAndUpdate(
       roomId,
       { $set: { nowPlayingQueueItemId: queueItemId } },
+      { new: true },
+    ).exec();
+    return doc ? toRoom(doc) : null;
+  },
+
+  async updateSettings(
+    roomId: string,
+    settings: RoomSettings,
+  ): Promise<Room | null> {
+    if (!mongoose.isValidObjectId(roomId)) {
+      return null;
+    }
+
+    const doc = await RoomModel.findByIdAndUpdate(
+      roomId,
+      {
+        $set: {
+          skipQuorumPercent: settings.skipQuorumPercent,
+          volumeQuorumPercent: settings.volumeQuorumPercent,
+          maxSubmissionDurationMinutes: settings.maxSubmissionDurationMinutes,
+          maxSimultaneousSubmissions: settings.maxSimultaneousSubmissions,
+        },
+      },
       { new: true },
     ).exec();
     return doc ? toRoom(doc) : null;

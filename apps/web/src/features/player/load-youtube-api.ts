@@ -1,5 +1,7 @@
 type YouTubePlayerInstance = {
   destroy: () => void;
+  setVolume?: (volume: number) => void;
+  getVolume?: () => number;
 };
 
 type YouTubeNamespace = {

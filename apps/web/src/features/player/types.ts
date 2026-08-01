@@ -24,5 +24,9 @@ export interface MediaPlayer {
     media: EmbeddableMedia,
     events?: MediaPlayerEvents,
   ): Promise<void>;
+  /** Set playback volume in the range 0–100. */
+  setVolume(level: number): void;
+  /** Current playback volume in the range 0–100, or null if not ready. */
+  getVolume(): number | null;
   destroy(): void;
 }

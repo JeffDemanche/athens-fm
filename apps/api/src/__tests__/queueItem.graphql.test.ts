@@ -43,6 +43,7 @@ describe("GraphQL QueueItem API", () => {
                           },
                         },
                       },
+                      contentDetails: { duration: "PT3M33S" },
                     },
                   ],
                 }
@@ -105,6 +106,39 @@ describe("GraphQL QueueItem API", () => {
       });
     expect(response.body.errors).toBeUndefined();
     return response.body.data.joinRoom.id as string;
+  }
+
+  async function updateSettings(
+    participantId: string,
+    input: {
+      skipQuorumPercent?: number;
+      volumeQuorumPercent?: number;
+      maxSubmissionDurationMinutes?: number | null;
+      maxSimultaneousSubmissions?: number | null;
+    },
+  ) {
+    const response = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Update($participantId: ID!, $input: RoomSettingsInput!) {
+            updateRoomSettings(participantId: $participantId, input: $input) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId,
+          input: {
+            skipQuorumPercent: 51,
+            volumeQuorumPercent: 34,
+            maxSubmissionDurationMinutes: null,
+            maxSimultaneousSubmissions: null,
+            ...input,
+          },
+        },
+      });
+    expect(response.body.errors).toBeUndefined();
   }
 
   it("adds queue items and lists them by score then oldest first", async () => {
@@ -394,5 +428,176 @@ describe("GraphQL QueueItem API", () => {
 
     expect(response.body.errors).toBeDefined();
     expect(response.body.errors[0].message).toMatch(/YouTube/i);
+  });
+
+  it("rejects submissions over the room duration limit", async () => {
+    const created = await createRoom("Short Only");
+    await updateSettings(created.participant.id, {
+      maxSubmissionDurationMinutes: 1,
+    });
+    const guestId = await joinGuest(created.room.shortId, "Pat");
+
+    const response = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "dQw4w9WgXcQ",
+        },
+      });
+
+    expect(response.body.errors?.[0]?.message).toMatch(/longer than.*1 minute/i);
+  });
+
+  it("rejects submissions when the guest already hit the simultaneous cap", async () => {
+    const created = await createRoom("One Slot");
+    await updateSettings(created.participant.id, {
+      maxSimultaneousSubmissions: 1,
+    });
+    const guestId = await joinGuest(created.room.shortId, "Quinn");
+
+    const first = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "dQw4w9WgXcQ",
+        },
+      });
+    expect(first.body.errors).toBeUndefined();
+
+    const second = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "jNQXAC9IVRw",
+        },
+      });
+
+    expect(second.body.errors?.[0]?.message).toMatch(/already have 1 item/i);
+  });
+
+  it("allows another submission after a prior item is soft-popped", async () => {
+    const created = await createRoom("After Pop");
+    await updateSettings(created.participant.id, {
+      maxSimultaneousSubmissions: 1,
+    });
+    const guestId = await joinGuest(created.room.shortId, "Riley");
+
+    const first = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "dQw4w9WgXcQ",
+        },
+      });
+    expect(first.body.errors).toBeUndefined();
+    const itemId = first.body.data.addQueueItem.id as string;
+
+    const popped = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Pop($id: ID!) {
+            popQueueItem(id: $id) { id finished }
+          }
+        `,
+        variables: { id: itemId },
+      });
+    expect(popped.body.errors).toBeUndefined();
+    expect(popped.body.data.popQueueItem.finished).toBe(true);
+
+    const second = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "jNQXAC9IVRw",
+        },
+      });
+
+    expect(second.body.errors).toBeUndefined();
+    expect(second.body.data.addQueueItem.id).toBeTruthy();
+  });
+
+  it("does not count legacy queue items missing finished toward the simultaneous cap", async () => {
+    const created = await createRoom("Legacy Ghosts");
+    await updateSettings(created.participant.id, {
+      maxSimultaneousSubmissions: 1,
+    });
+    const guestId = await joinGuest(created.room.shortId, "Sage");
+
+    await mongoose.connection.collection("queue_items").insertOne({
+      roomId: new mongoose.Types.ObjectId(created.room.id),
+      participantId: new mongoose.Types.ObjectId(guestId),
+      type: "YOUTUBE",
+      externalId: "legacyGhost",
+      title: "Ghost track",
+      thumbnailUrl: "https://example.com/ghost.jpg",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const response = await request(app)
+      .post("/api/graphql")
+      .send({
+        query: `
+          mutation Add($participantId: ID!, $type: QueueItemType!, $mediaRef: String!) {
+            addQueueItem(participantId: $participantId, type: $type, mediaRef: $mediaRef) {
+              id
+            }
+          }
+        `,
+        variables: {
+          participantId: guestId,
+          type: "YOUTUBE",
+          mediaRef: "dQw4w9WgXcQ",
+        },
+      });
+
+    expect(response.body.errors).toBeUndefined();
+    expect(response.body.data.addQueueItem.id).toBeTruthy();
   });
 });

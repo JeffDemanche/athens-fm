@@ -22,12 +22,17 @@ import {
   skipVoteService,
   type SkipVoteService,
 } from "./skipVoteService.js";
+import {
+  volumeVoteService,
+  type VolumeVoteService,
+} from "./volumeVoteService.js";
 
 export function createParticipantService(
   repo: ParticipantRepository = participantRepository,
   rooms: RoomRepository = roomRepository,
   events: RoomEventService = roomEventService,
   skipVotes: SkipVoteService = skipVoteService,
+  volumeVotes: VolumeVoteService = volumeVoteService,
 ) {
   async function assertNameAvailable(roomId: string, name: string) {
     const existing = await repo.findByRoomIdAndNameKey(
@@ -103,13 +108,14 @@ export function createParticipantService(
         lastActiveAt: new Date(),
       });
       await skipVotes.publishStateForRoom(room.id);
+      await volumeVotes.publishStateForRoom(room.id);
       return participant;
     },
 
     /**
-     * Refresh guest activity so they remain in skip quorum (20m TTL).
+     * Refresh guest activity so they remain in skip/volume quorum (20m TTL).
      * Hosts are ignored — they are not part of the listening quorum.
-     * Skip-state is only republished when the guest newly enters the active
+     * Vote-state is only republished when the guest newly enters the active
      * set; heartbeat touches for already-active guests stay quiet.
      */
     async touchActivity(participantId: string): Promise<Participant> {
@@ -133,7 +139,9 @@ export function createParticipantService(
       }
 
       if (!wasActive) {
-        await skipVotes.publishStateForRoom(String(updated.roomId));
+        const roomId = String(updated.roomId);
+        await skipVotes.publishStateForRoom(roomId);
+        await volumeVotes.publishStateForRoom(roomId);
       }
       return updated;
     },
@@ -147,9 +155,11 @@ export function createParticipantService(
       const roomId = String(existing.roomId);
       await events.recordLeave(existing);
       await skipVotes.clearVotesForParticipant(existing.id);
+      await volumeVotes.clearVotesForParticipant(existing.id);
       const deleted = await repo.deleteById(participantId);
       if (deleted) {
         await skipVotes.publishStateForRoom(roomId);
+        await volumeVotes.publishStateForRoom(roomId);
       }
       return deleted;
     },

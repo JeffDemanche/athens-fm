@@ -7,16 +7,26 @@ import type {
 
 type YouTubePlayerInstance = {
   destroy: () => void;
+  setVolume?: (volume: number) => void;
+  getVolume?: () => number;
 };
 
 /** YT.PlayerState.ENDED — hardcode fallback if namespace omits constants. */
 const YT_ENDED = 0;
+
+function clampVolume(level: number): number {
+  if (!Number.isFinite(level)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, Math.round(level)));
+}
 
 export class YouTubeMediaPlayer implements MediaPlayer {
   readonly provider = "YOUTUBE" as const;
   private player: YouTubePlayerInstance | null = null;
   private host: HTMLDivElement | null = null;
   private endedFired = false;
+  private pendingVolume: number | null = null;
 
   async mount(
     container: HTMLElement,
@@ -54,6 +64,9 @@ export class YouTubeMediaPlayer implements MediaPlayer {
       },
       events: {
         onReady: () => {
+          if (this.pendingVolume != null) {
+            this.setVolume(this.pendingVolume);
+          }
           events?.onReady?.();
         },
         onStateChange: (event) => {
@@ -72,6 +85,25 @@ export class YouTubeMediaPlayer implements MediaPlayer {
     });
   }
 
+  setVolume(level: number): void {
+    const clamped = clampVolume(level);
+    this.pendingVolume = clamped;
+    try {
+      this.player?.setVolume?.(clamped);
+    } catch {
+      // Player may not be ready yet; pendingVolume applies onReady.
+    }
+  }
+
+  getVolume(): number | null {
+    try {
+      const value = this.player?.getVolume?.();
+      return typeof value === "number" ? clampVolume(value) : this.pendingVolume;
+    } catch {
+      return this.pendingVolume;
+    }
+  }
+
   destroy(): void {
     if (this.player) {
       try {
@@ -82,5 +114,6 @@ export class YouTubeMediaPlayer implements MediaPlayer {
       this.player = null;
     }
     this.host = null;
+    this.pendingVolume = null;
   }
 }

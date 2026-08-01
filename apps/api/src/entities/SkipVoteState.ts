@@ -4,7 +4,7 @@ import { Field, ID, Int, ObjectType } from "type-graphql";
 
 /**
  * Live skip tally for the room's current now-playing item.
- * Quorum is a simple majority of active participants (for now: all guests).
+ * Quorum is ceil(n * skipQuorumPercent / 100) of active guests.
  */
 @ObjectType()
 export class SkipVoteState {
@@ -22,7 +22,7 @@ export class SkipVoteState {
   @Field(() => Int)
   participantCount!: number;
 
-  /** Votes needed to pass: floor(n/2)+1 when n>0, else 0. */
+  /** Votes needed to pass from the room's skip quorum percent. */
   @Field(() => Int)
   threshold!: number;
 
